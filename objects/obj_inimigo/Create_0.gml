@@ -90,8 +90,25 @@ esta_na_caixa = function()
 }
 
 // comportamento a cada quadro (chamado pelo obj_game, depois do rato)
+// preso dentro de uma caixa (não deveria acontecer): sai para o lado livre mais perto
+desencalha = function()
+{
+    for (var k = 0; k < array_length(global.caixas); k++)
+    {
+        var b = global.caixas[k];
+        if (!retangulos_batem(self, b)) continue;
+        var esq = b.x - w;
+        var dir = b.x + b.w;
+        var ficou = x;
+        x = (x + w / 2 < b.x + b.w / 2) ? esq : dir;
+        if (tile_sobreposto(self, solido_inimigo) != undefined) x = (x == esq) ? dir : esq;
+        if (tile_sobreposto(self, solido_inimigo) != undefined) x = ficou;
+    }
+}
+
 atualiza = function()
 {
+    desencalha();
     var p = global.jogador;
     var px = p.x + 5;
     var ex = x + w / 2;

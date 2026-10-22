@@ -14,10 +14,15 @@ bate = function(_outra)
     return id != _outra.id && x < _outra.x + _outra.w && x + w > _outra.x && y < _outra.y + _outra.h && y + h > _outra.y;
 }
 
-// encostou em algo sólido ou em outra caixa?
+// encostou em algo sólido, em outra caixa ou em um inimigo? (a caixa não cai nem entra em cima de guarda/cão:
+// ela para em cima da cabeça dele, senão o inimigo ficaria preso dentro dela)
 bloqueada = function()
 {
     if (tile_sobreposto(self, solido_rato) != undefined) return true;
+    for (var k = 0; k < array_length(global.inimigos); k++)
+    {
+        if (retangulos_batem(self, global.inimigos[k])) return true;
+    }
     for (var k = 0; k < array_length(global.caixas); k++)
     {
         if (bate(global.caixas[k])) return true;

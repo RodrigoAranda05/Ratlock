@@ -88,8 +88,14 @@ function fase_concluida()
     }
     global.queijo_fase = (array_length(global.queijos) > 0) ? (todos ? 1 : 0) : -1;
 
+    if (!global.cheat && global.modo != "teste")
+    {
+        global.stats.conclusoes++;
+        if (global.modo != "normal") grava_save();      // no modo normal o grava_save logo abaixo já grava
+    }
     if (global.modo == "normal" && !global.cheat && global.fase_atual >= 0)
     {
+        global.save.feita[global.fase_atual] = 1;
         if (global.queijo_fase == 1) global.save.queijo[global.fase_atual] = 1;
         // atenção: em GML arrays são copiados ao modificar, então grava direto no array original
         for (var q = 0; q < 3; q++)

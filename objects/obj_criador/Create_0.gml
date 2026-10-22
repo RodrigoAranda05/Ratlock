@@ -162,6 +162,8 @@ salvar = function()
         copia.slot = array_length(global.custom_salvas);
         array_push(global.custom_salvas, copia);
         ed.slot = copia.slot;
+        global.stats.fases_criadas++;
+        grava_save();
     }
     grava_custom();
     avisa("Fase salva! C copia o código para compartilhar");

@@ -177,6 +177,7 @@ morre = function()
         }
         return;
     }
+    if (!global.cheat) global.stats.mortes++;
     morto = true; tempo_morte = 0; velv = -230; velh = 0; escalando = 0; roendo = 0;
     global.mortes++; global.mortes_fase++; global.piscada = 0.5;
 }

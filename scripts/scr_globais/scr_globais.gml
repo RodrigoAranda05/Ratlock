@@ -31,6 +31,9 @@ function inicia_globais()
     global.custom_atual = undefined;    // fase criada que está rodando na rm_custom
     global.trapaceou = false;       // usou cheat durante o teste (então não vale como validação)
 
+    global.tempo_gravar = 20;       // segundos até gravar as estatísticas de novo
+    global.stats = {tempo: 0, mortes: 0, conclusoes: 0, fases_criadas: 0};
+
     // cheats
     global.cheat = false;
     global.invencivel = false;

@@ -6,6 +6,9 @@ global.aviso_tempo -= DT;
 if (global.estado == "play" && instance_exists(global.jogador))
 {
     passo_fase();
+    if (!global.cheat) global.stats.tempo += DT;
+    global.tempo_gravar -= DT;
+    if (global.tempo_gravar <= 0) { global.tempo_gravar = 20; grava_save(); }      // guarda tempo e mortes de vez em quando
 }
 else if (global.estado == "clear")
 {

@@ -143,3 +143,19 @@ function desenha_moldura(_x, _y, _w, _h)
     desenha_rect(_x - 2, _y, 2, _h, 0xffd84a);
     desenha_rect(_x + _w, _y, 2, _h, 0xffd84a);
 }
+
+// duração em horas:minutos:segundos (ex.: 1:05:09)
+function formata_duracao(_t)
+{
+    var h = floor(_t / 3600);
+    var m = floor((_t % 3600) / 60);
+    var s = floor(_t % 60);
+    return string(h) + ":" + ((m < 10) ? "0" : "") + string(m) + ":" + ((s < 10) ? "0" : "") + string(s);
+}
+
+// barra de progresso: _f de 0 a 1
+function desenha_barra(_x, _y, _w, _h, _f, _c)
+{
+    desenha_rect(_x, _y, _w, _h, 0x10141b);
+    desenha_rect(_x, _y, floor(_w * clamp(_f, 0, 1)), _h, _c);
+}
