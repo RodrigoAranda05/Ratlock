@@ -54,7 +54,10 @@ ajusta_tela = function()
 inicia_globais();
 carrega_fases();
 carrega_save();
+carrega_pecas();
+carrega_custom();
 instance_create_depth(0, 0, -10000, obj_ui);
+instance_create_depth(0, 0, -10001, obj_criador);
 
 #endregion
 

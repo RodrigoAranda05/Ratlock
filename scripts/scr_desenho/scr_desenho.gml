@@ -107,3 +107,39 @@ function faiscas(_x, _y, _n)
         });
     }
 }
+
+// ---------- GUI em alta resolução ----------
+// O layout é 480x272 (VW x VH); a matriz amplia para a janela. Chame gui_comeca() no Draw GUI e gui_termina() no fim.
+function gui_comeca()
+{
+    var k = min(JANELA_W / VW, JANELA_H / VH);
+    matrix_set(matrix_world, matrix_build((JANELA_W - VW * k) / 2, (JANELA_H - VH * k) / 2, 0, 0, 0, 0, k, k, 1));
+}
+
+function gui_termina()
+{
+    matrix_set(matrix_world, matrix_build_identity());
+    draw_set_alpha(1);
+    draw_set_colour(c_white);
+}
+
+// posição do mouse no layout 480x272 (como o desenho do GUI enxerga)
+function mouse_layout_x()
+{
+    var k = min(JANELA_W / VW, JANELA_H / VH);
+    return (device_mouse_x_to_gui(0) - (JANELA_W - VW * k) / 2) / k;
+}
+
+function mouse_layout_y()
+{
+    var k = min(JANELA_W / VW, JANELA_H / VH);
+    return (device_mouse_y_to_gui(0) - (JANELA_H - VH * k) / 2) / k;
+}
+
+function desenha_moldura(_x, _y, _w, _h)
+{
+    desenha_rect(_x - 2, _y - 2, _w + 4, 2, 0xffd84a);
+    desenha_rect(_x - 2, _y + _h, _w + 4, 2, 0xffd84a);
+    desenha_rect(_x - 2, _y, 2, _h, 0xffd84a);
+    desenha_rect(_x + _w, _y, 2, _h, 0xffd84a);
+}

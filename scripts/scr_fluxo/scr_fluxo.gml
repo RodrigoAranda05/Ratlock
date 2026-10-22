@@ -12,8 +12,32 @@ function inicia_fase(_i, _m)
     room_goto(global.salas[_i]);
 }
 
+// joga uma fase do criador: "teste" (vindo do editor, valida a fase) ou "custom" (fase salva/importada)
+function inicia_custom(_f, _modo)
+{
+    global.custom_atual = _f;
+    global.modo = _modo;
+    global.trapaceou = false;
+    global.fase_nova = true;
+    global.fase_atual = -1;
+    global.estado = "play";
+    room_goto(rm_custom);
+}
+
+// volta da fase criada: o teste volta ao editor, a fase salva volta à lista
+function sai_custom()
+{
+    global.estado = (global.modo == "teste") ? "editor" : "lista_custom";
+    room_goto(rm_criador);
+}
+
 function proxima_fase()
 {
+    if (global.modo == "teste" || global.modo == "custom")
+    {
+        sai_custom();
+        return;
+    }
     if (global.fase_atual < 0)      // sala de teste fora da lista: volta ao menu
     {
         global.estado = "worlds";
@@ -75,6 +99,8 @@ function fase_concluida()
         global.save.liberadas = max(global.save.liberadas, min(array_length(global.fases) - 1, global.fase_atual + 1));
         grava_save();
     }
+    // terminou o teste no editor sem trapacear: a fase está validada e pode ser salva/compartilhada
+    if (global.modo == "teste" && !global.cheat && !global.trapaceou && global.ed != undefined) global.ed.validada = true;
     global.estado = "clear";
     global.tempo_tela = 0;
 }

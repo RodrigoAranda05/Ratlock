@@ -89,8 +89,8 @@ pega_input = function()
 detecta_parede = function()
 {
     var meio = floor((y + 5) / TL);
-    parede_esq = tile_escalavel(floor((x - 1) / TL), meio);
-    parede_dir = tile_escalavel(floor((x + w + 1) / TL), meio);
+    parede_esq = cano_encosta(floor((x - 1) / TL), meio, x - 1);
+    parede_dir = cano_encosta(floor((x + w + 1) / TL), meio, x + w + 1);
 }
 
 // no chão?

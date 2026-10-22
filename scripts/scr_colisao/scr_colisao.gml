@@ -18,6 +18,19 @@ function tile_escalavel(_i, _j)
     return tile_em(_i, _j) == "#";
 }
 
+// O cano é fino: só a faixa do meio do tile (CANO_E..CANO_D) é sólida, o resto do tile é vazio.
+// _x0.._x1 é a faixa horizontal do corpo que está sendo testado.
+function cano_bate(_i, _x0, _x1)
+{
+    return _x1 > _i * TL + CANO_E && _x0 < _i * TL + CANO_D;
+}
+
+// o corpo toca o cano do tile _i? (usado para agarrar na lateral)
+function cano_encosta(_i, _j, _x)
+{
+    return tile_escalavel(_i, _j) && _x >= _i * TL + CANO_E && _x <= _i * TL + CANO_D;
+}
+
 function dir_ventoinha(_c)
 {
     switch (_c)
@@ -107,7 +120,9 @@ function tile_sobreposto(_o, _s)
     {
         for (var i = x0; i <= x1; i++)
         {
-            if (_s(i, j)) return [i, j];
+            if (!_s(i, j)) continue;
+            if (tile_em(i, j) == "#" && !cano_bate(i, _o.x, _o.x + _o.w)) continue;   // cano fino: passou pelo lado
+            return [i, j];
         }
     }
     return undefined;
@@ -119,7 +134,10 @@ function move_x_grade(_o, _d, _s)
     var h = tile_sobreposto(_o, _s);
     if (h != undefined)
     {
-        _o.x = (_d > 0) ? h[0] * TL - _o.w : (h[0] + 1) * TL;
+        var cano = (tile_em(h[0], h[1]) == "#");
+        var borda_e = h[0] * TL + (cano ? CANO_E : 0);
+        var borda_d = (h[0] + 1) * TL - (cano ? TL - CANO_D : 0);
+        _o.x = (_d > 0) ? borda_e - _o.w : borda_d;
         return true;
     }
     return false;

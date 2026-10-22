@@ -16,14 +16,20 @@ function inicia_globais()
     global.aviso_texto = "";
     global.aviso_tempo = 0;
     global.tempo_tela = 0;          // tempo desde que a tela atual abriu
-    global.estado = "title";        // title, worlds, select, play, clear, win
-    global.modo = "normal";         // normal ou challenge
+    global.estado = "title";        // title, worlds, select, play, clear, win, lista_custom, editor
+    global.modo = "normal";         // normal, challenge, teste (testando no editor) ou custom (fase do jogador)
     global.menu_cursor = 0;
     global.mundo_cursor = 0;
     global.mundo_sel = 0;
     global.fase_cursor = 0;
     global.fase_rolagem = 0;        // primeira linha de fases visível na seleção
     global.mundo_rolagem = 0;       // primeira linha de mundos visível
+
+    // criador de fases
+    global.ed = undefined;          // fase que está no editor: {nome, grade, validada, slot}
+    global.custom_salvas = [];      // fases do jogador (criadas ou importadas), todas já validadas
+    global.custom_atual = undefined;    // fase criada que está rodando na rm_custom
+    global.trapaceou = false;       // usou cheat durante o teste (então não vale como validação)
 
     // cheats
     global.cheat = false;

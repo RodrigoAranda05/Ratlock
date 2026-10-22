@@ -49,10 +49,7 @@ desenha_seta_rolagem = function(_x, _y, _dir)
 
 moldura = function(_x, _y, _w, _h)
 {
-    desenha_rect(_x - 2, _y - 2, _w + 4, 2, 0xffd84a);
-    desenha_rect(_x - 2, _y + _h, _w + 4, 2, 0xffd84a);
-    desenha_rect(_x - 2, _y, 2, _h, 0xffd84a);
-    desenha_rect(_x + _w, _y, 2, _h, 0xffd84a);
+    desenha_moldura(_x, _y, _w, _h);
 }
 
 titulo = function(_s, _y, _c, _z)
@@ -74,11 +71,13 @@ tecla_menu = function(_k)
     var tela = global.estado;
     if (tela == "title")
     {
-        if (_k == "up" || _k == "down") global.menu_cursor = 1 - global.menu_cursor;
+        if (_k == "up") global.menu_cursor = (global.menu_cursor + 2) % 3;
+        else if (_k == "down") global.menu_cursor = (global.menu_cursor + 1) % 3;
         else if (_k == "ok")
         {
             if (global.menu_cursor == 0) global.estado = "worlds";
-            else inicia_fase(0, "challenge");
+            else if (global.menu_cursor == 1) inicia_fase(0, "challenge");
+            else { global.estado = "lista_custom"; global.modo = "normal"; room_goto(rm_criador); }
         }
     }
     else if (tela == "worlds")
@@ -127,7 +126,8 @@ tecla_menu = function(_k)
         if (_k == "r") { global.fase_nova = false; room_restart(); }
         else if (_k == "esc")
         {
-            if (global.modo == "challenge") { global.estado = "title"; room_goto(rm_menu); }
+            if (global.modo == "teste" || global.modo == "custom") sai_custom();
+            else if (global.modo == "challenge") { global.estado = "title"; room_goto(rm_menu); }
             else
             {
                 global.mundo_sel = global.info_fase.mundo;
@@ -146,6 +146,7 @@ tecla_menu = function(_k)
             else if (_k == "r") { global.fase_nova = true; global.estado = "play"; room_restart(); }
             else if (_k == "esc")
             {
+                if (global.modo == "teste" || global.modo == "custom") { sai_custom(); return; }
                 global.mundo_sel = global.info_fase.mundo;
                 global.mundo_cursor = global.mundo_sel;
                 global.fase_cursor = max(0, array_get_index(fases_do_mundo(global.mundo_sel), global.fase_atual));
@@ -163,6 +164,7 @@ tecla_menu = function(_k)
 cheat_alterna = function()
 {
     global.cheat = !global.cheat;
+    global.trapaceou = true;            // se o teste de uma fase criada passar por aqui, ela não valida
     if (!global.cheat) global.invencivel = false;
     mostra_aviso(global.cheat ? "Cheats ligados (progresso não é salvo)" : "Cheats desligados", 2.5);
 }
@@ -205,6 +207,7 @@ cheat_faz = function(_a)
 
 le_teclado = function()
 {
+    if (global.estado == "lista_custom" || global.estado == "editor") return;     // o obj_criador cuida dessas telas
     ajusta_rolagem();
     if (keyboard_check_pressed(vk_f1)) cheat_alterna();
     if (global.cheat)
@@ -230,12 +233,10 @@ desenha_menus = function()
     var agora = global.tempo_jogo;
     if (tela == "title")
     {
-        desenha_rect_alfa(0, 0, VW, VH, 0x05080e, 0.72);
-        titulo("RATLOCK", 64, 0xffd84a, 40);
-        titulo("Fuja da prisão: pegue a chave e abra a porta", 98, 0xa9b4c4, 11);
-        var opcoes = ["JOGAR", "MODO DESAFIO"];
-        for (var k = 0; k < 2; k++)
-            titulo(((global.menu_cursor == k) ? "> " : "  ") + opcoes[k] + ((global.menu_cursor == k) ? " <" : "  "), 150 + k * 30, (global.menu_cursor == k) ? 0xffd84a : 0xf3efe6, 16);
+        // o fundo (spr_fundo_menu na rm_menu) já tem o logo e o subtítulo
+        var opcoes = ["JOGAR", "MODO DESAFIO", "CRIAR FASES"];
+        for (var k = 0; k < 3; k++)
+            titulo(((global.menu_cursor == k) ? "> " : "  ") + opcoes[k] + ((global.menu_cursor == k) ? " <" : "  "), 130 + k * 26, (global.menu_cursor == k) ? 0xffd84a : 0xf3efe6, 16);
         var extra = "Estrelas: " + string(total_estrelas()) + "/" + string(array_length(global.fases) * 3) + "  ·  Queijos: " + string(total_queijos()) + "/" + string(total_queijos_max());
         if (global.save.desafio_tempo >= 0) extra += "  ·  Melhor desafio: " + formata_tempo(global.save.desafio_tempo) + " (" + string(global.save.desafio_mortes) + " mortes)";
         titulo(extra, 212, 0xa9b4c4, 10);
@@ -302,7 +303,19 @@ desenha_menus = function()
         desenha_rect_alfa(0, 0, VW, VH, 0x05080e, 0.68);
         titulo("SALA CONCLUÍDA!", 52, 0xffd84a, 26);
         titulo(L.nome, 80, 0xa9b4c4, 11);
-        if (global.modo == "normal")
+        if (global.modo == "teste" || global.modo == "custom")
+        {
+            if (global.modo == "teste")
+            {
+                var valida = (global.ed != undefined && global.ed.validada);
+                titulo(valida ? "FASE VALIDADA!" : "Fase NÃO validada (cheats usados)", 124, valida ? 0x4ade80 : 0xff6b5e, 16);
+                titulo(valida ? "Agora você pode salvar e compartilhar esta fase." : "Zere a fase sem cheats para poder salvar.", 148, 0xa9b4c4, 11);
+            }
+            else titulo("Fase do jogador", 130, 0xa9b4c4, 14);
+            titulo("Tempo: " + string_format(global.tempo_fase, 1, 1) + "s  ·  Mortes na sala: " + string(global.mortes_fase), 190, 0xa9b4c4, 10);
+            if (global.tempo_tela > 0.5) titulo("Enter: " + ((global.modo == "teste") ? "voltar ao editor" : "voltar à lista") + "  ·  R: repetir", 242, 0x7d8798, 10);
+        }
+        else if (global.modo == "normal")
         {
             var metas = objetivos(L);
             for (var k = 0; k < 3; k++)
@@ -360,6 +373,7 @@ desenha_hud = function()
     }
     if (global.alarme) desenha_texto("ALARME", VW / 2, 9, (floor(agora * 6) % 2 == 1) ? 0xff4030 : 0xffd84a, "center", 10);
     if (global.modo == "challenge") desenha_texto("TOTAL " + formata_tempo(global.tempo_total), 84, 9, 0xa9b4c4, "left", 10);
+    else if (global.modo == "teste" || global.modo == "custom") desenha_texto(string(floor(global.tempo_fase)) + "s", 84, 9, 0xa9b4c4, "left", 10);
     else desenha_texto(string(floor(global.tempo_fase)) + "s/" + string(L.tempo_par) + "s", 84, 9, 0xa9b4c4, "left", 10);
     desenha_texto(((global.fase_atual >= 0) ? string(global.fase_atual + 1) + "/" + string(array_length(global.fases)) + " " : "") + string_upper(L.nome), VW - 6, 9, 0xf3efe6, "right", 10);
     if (global.tem_chave)

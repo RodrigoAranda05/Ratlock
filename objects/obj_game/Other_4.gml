@@ -4,8 +4,12 @@
 
 ajusta_tela();
 
+// fase do criador: cria as instâncias a partir da grade antes de montar o resto
+var _custom_info = undefined;
+if (room == rm_custom && global.custom_atual != undefined) _custom_info = constroi_fase_custom();
+
 // sem rato (menu): nada para montar
-if (room == rm_menu || !instance_exists(obj_player))
+if (room == rm_menu || room == rm_criador || !instance_exists(obj_player))
 {
     global.jogador = noone;
     exit;
@@ -14,6 +18,7 @@ if (room == rm_menu || !instance_exists(obj_player))
 // dados da fase: da lista (rm_fase_01...) ou padrão, para uma room de teste que não está na lista
 global.fase_atual = array_get_index(global.salas, room);
 global.info_fase = (global.fase_atual >= 0) ? global.fases[global.fase_atual] : fase_padrao(room);
+if (_custom_info != undefined) global.info_fase = _custom_info;
 if (global.estado == "title" || global.estado == "worlds" || global.estado == "select") global.estado = "play";
 
 if (global.fase_nova)
