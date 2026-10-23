@@ -26,8 +26,8 @@ surface_resize(application_surface, JANELA_W, JANELA_H);
 display_set_gui_size(JANELA_W, JANELA_H);
 randomize();
 
-// A room pode ter qualquer tamanho (múltiplo de 16). A câmera mostra a room inteira, ampliada o máximo
-// que couber na janela e centralizada. Rooms pequenas (ex.: 320x176 = 20x11 tiles) ficam grandes na tela.
+// A room pode ter qualquer tamanho (múltiplo de 16). A câmera é fixa: mostra a room inteira, ampliada o máximo
+// que couber na janela e centralizada. As fases usam 320x176 (20x11 tiles) e ficam grandes na tela.
 ajusta_tela = function()
 {
     global.colunas = ceil(room_width / TL);

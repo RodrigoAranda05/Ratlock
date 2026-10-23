@@ -27,8 +27,21 @@ solta = function()
     espera_pega = 0.5;
 }
 
+// a chave solta encostou num espinho? (mesma caixa de espinho que mata o rato)
+toca_espinho = function()
+{
+    for (var j = floor(y / TL); j <= floor((y + h) / TL); j++)
+    {
+        for (var i = floor(x / TL); i <= floor((x + w) / TL); i++)
+        {
+            if (tile_em(i, j) == "^" && retangulos_batem(self, {x: i * TL + 2, y: j * TL + 7, w: 12, h: 9})) return true;
+        }
+    }
+    return false;
+}
+
 // volta ao lugar de origem
-volta = function()
+volta = function(_destruida = false)
 {
     estado = "home";
     x = casa_x - 3;
@@ -37,7 +50,7 @@ volta = function()
     velv = 0;
     tempo_livre = 0;
     faiscas(casa_x, casa_y, 14);
-    mostra_aviso("A chave voltou ao lugar de origem", 2.5);
+    mostra_aviso(_destruida ? "A chave foi destruída pelo espinho e voltou ao lugar de origem" : "A chave voltou ao lugar de origem", 2.5);
 }
 
 // chamado pelo obj_game a cada quadro
@@ -52,6 +65,7 @@ atualiza = function()
         if (move_x_grade(self, velh * DT, solido_rato)) velh = 0;
         if (move_y_grade(self, velv * DT, solido_rato)) { if (velv > 0) velh = 0; velv = 0; }
         tempo_livre += DT;
+        if (toca_espinho()) { faiscas(x + 3, y + 3, 18); volta(true); return; }
         if (tempo_livre > 12 || y > GH * TL) volta();
     }
     if (estado != "carried" && espera_pega <= 0 && p.escalando == 0 && point_distance(x + 3, y + 3, p.x + 5, p.y + 5) < 12)

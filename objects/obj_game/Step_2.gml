@@ -16,3 +16,4 @@ else if (global.estado == "clear")
     if (global.modo == "challenge" && global.tempo_tela > 1.3) proxima_fase();
 }
 else global.tempo_tela += DT;
+
