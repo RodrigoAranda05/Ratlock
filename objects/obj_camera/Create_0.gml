@@ -26,7 +26,7 @@ atualiza = function()
     tempo += DT;
     angulo = pi / 2 + sin(tempo * 0.8) * amplitude;
     ligada = global.luz_ligada;
-    var rato_x = p.x + 5, rato_y = p.y + 5;
+    var rato_x = p.x + p.w / 2, rato_y = p.y + p.h / 2;
     var dist_x = rato_x - x, dist_y = rato_y - y;
     var desvio = abs(arctan2(dist_y, dist_x) - angulo);
     if (desvio > pi) desvio = 2 * pi - desvio;

@@ -1,4 +1,4 @@
-draw_self();
+draw_sprite(spr_pedra, quadro_pedra(coluna, linha), x, y);
 // perto do rato a parede falsa escurece (dica de que dá pra atravessar)
 if (instance_exists(global.jogador))
 {

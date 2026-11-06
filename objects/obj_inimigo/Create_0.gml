@@ -184,7 +184,7 @@ atualiza = function()
     if (chao && tipo != "T") atualiza_limites();
     indo_cabo = false;
     var p = global.jogador;
-    var px = p.x + 5;
+    var px = p.x + p.w / 2;
     var ex = x + w / 2;
     var dx = px - ex;
     var dy = p.y + p.h - y - h;
@@ -197,7 +197,7 @@ atualiza = function()
         ativo = !cego && ciclo < 1.8;
         avisando = !cego && ciclo > 3.7;
         var fy = y + h;
-        var no_cone = !p.escondido && p.x + p.w > ex - 176 && p.x < ex && p.y + p.h > fy - 48 && p.y < fy && tem_visao(ex, fy - 14, px, p.y + 5);
+        var no_cone = !p.escondido && p.x + p.w > ex - 176 && p.x < ex && p.y + p.h > fy - 48 && p.y < fy && tem_visao(ex, fy - 14, px, p.y + p.h / 2);
         if (ativo && no_cone)
         {
             tempo_cone += DT;
@@ -220,7 +220,7 @@ atualiza = function()
     }
     else
     {
-        enxerga = (!no_escuro && !p.escondido && abs(dy) < 30 && abs(dx) < alcance && (tipo == "H" || sign(dx) == face) && tem_visao(ex, y + 6, px, p.y + 5));
+        enxerga = (!no_escuro && !p.escondido && abs(dy) < 30 && abs(dx) < alcance && (tipo == "H" || sign(dx) == face) && tem_visao(ex, y + 6, px, p.y + p.h / 2));
     }
 
     var velocidade = 0;

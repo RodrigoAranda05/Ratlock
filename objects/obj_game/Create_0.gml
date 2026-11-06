@@ -64,6 +64,34 @@ instance_create_depth(0, 0, -10001, obj_criador);
 
 #region montar a fase
 
+// Pintar pedra no Room Editor: crie uma layer de tiles chamada tl_pedra com o tileset ts_pedra e pinte com QUALQUER tile.
+// Ao abrir a fase, cada tile pintado vira pedra na grade (colisão) e o jogo troca o desenho pelo bloco certo
+// (teto, chão, parede, canto ou ligação), olhando os vizinhos, inclusive as pedras que são objetos. O tile 0 do tileset é o vazio.
+junta_tiles_pedra = function()
+{
+    if (!layer_exists("tl_pedra")) return;
+    var _mapa = layer_tilemap_get_id("tl_pedra");
+    if (_mapa == -1) return;
+    var _cols = min(tilemap_get_width(_mapa), GW);
+    var _lins = min(tilemap_get_height(_mapa), GH);
+    var _pintados = [];
+    for (var j = 0; j < _lins; j++)
+    {
+        for (var i = 0; i < _cols; i++)
+        {
+            if (tile_get_index(tilemap_get(_mapa, i, j)) == 0) continue;
+            if (global.grade[j][i] == ".") global.grade[j][i] = "S";
+            array_push(_pintados, [i, j]);
+        }
+    }
+    for (var k = 0; k < array_length(_pintados); k++)
+    {
+        var c = _pintados[k][0];
+        var l = _pintados[k][1];
+        tilemap_set(_mapa, 1 + quadro_pedra(c, l), c, l);   // +1: o tile 0 é o vazio
+    }
+}
+
 // chamado no Room Start: com as instâncias da room criadas, monta a grade e as listas do jogo
 monta_fase = function()
 {
@@ -87,6 +115,9 @@ monta_fase = function()
         if (coluna >= 0 && coluna < GW && linha >= 0 && linha < GH) global.grade[linha][coluna] = simbolo;
     }
 
+    // pedras pintadas no Room Editor (layer de tiles "tl_pedra"): entram na grade e escolhem o bloco pelos vizinhos
+    junta_tiles_pedra();
+
     // listas que os outros objetos consultam
     global.caixas = [];    with (obj_caixa) array_push(global.caixas, id);
     global.cabos = [];     with (obj_cabo) array_push(global.cabos, id);
@@ -98,7 +129,15 @@ monta_fase = function()
     global.chave = noone;  with (obj_chave) global.chave = id;
 
     // cada peça que precisa da grade pronta se prepara sozinha
-    with (obj_queijo) prepara();            // queijo ao lado de parede falsa é secreto
+    global.plat_span = [];
+    for (var j = 0; j < GH; j++)
+    {
+        var fileira_span = [];
+        for (var i = 0; i < GW; i++) array_push(fileira_span, [0, TL]);
+        array_push(global.plat_span, fileira_span);
+    }
+    with (obj_cano) liga();                 // emenda os canos vizinhos
+    with (obj_plataforma) liga();           // ponta, meio ou solta
     with (obj_ventoinha) prepara();         // marca a zona de vento
     // botão marcado como "comeca_ativo": só o primeiro (na ordem de criação) vale
     with (obj_botao)
@@ -173,7 +212,7 @@ troca_cor_pendente = function()
     if (!ocupado)
     {
         global.cor_ativa = global.cor_pendente;
-        faiscas(p.x + 5, p.y + 8, 10);
+        faiscas(p.x + p.w / 2, p.y + p.h - 3, 10);
         var nomes = ["vermelhas", "azuis", "verdes", "amarelas"];
         mostra_aviso("Portas " + nomes[global.cor_ativa] + " abertas", 2);
     }

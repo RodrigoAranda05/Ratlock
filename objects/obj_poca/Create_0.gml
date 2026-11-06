@@ -10,7 +10,7 @@ atualiza = function()
     var tocando_y = (linha >= floor(p.y / TL) && linha <= floor((p.y + p.h - 1) / TL));
     if (tocando_x && tocando_y && p.y + p.h > linha * TL + 11)
     {
-        faiscas(p.x + 5, p.y + 8, 20);
+        faiscas(p.x + p.w / 2, p.y + p.h - 3, 20);
         p.morre();
     }
 }

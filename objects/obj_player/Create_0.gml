@@ -1,30 +1,31 @@
 // ===== obj_player: o rato =====
 // Mesmo estilo do seu código: variáveis em #region, pega_input(), checa_chao(), estados como funções
 // (estado_parado / estado_movendo / estado_pulo) trocando a variável "estado".
-// Diferença importante: aqui x,y é o canto superior esquerdo da caixa 10x10 e as velocidades são em
+// Diferença importante: aqui x,y é o canto superior esquerdo da caixa 12x19 e as velocidades são em
 // pixels por SEGUNDO (os valores foram afinados na versão web, que roda com passo fixo de 1/60 s = DT).
 // A colisão é feita contra a grade do mapa (tile_em / solido_rato), não contra uma obj_parede, porque os
 // portões, pisos, ventoinhas e lasers mudam de estado durante a fase.
 
 #region variaveis
 
-w = 10;
-h = 10;
+w = 12;
+h = 19;
 
 velh = 0;               // velocidade horizontal (px/s)
 velv = 0;               // velocidade vertical (px/s)
-max_velh = 105;         // andar
+max_velh = 95;          // andar
 grav = 900;             // gravidade (px/s²)
 max_velv = 420;         // velocidade máxima de queda
-pulo_forca = -290;      // força do pulo (com a chave na boca é -230)
+pulo_forca = -280;      // força do pulo (com a chave na boca é -210)
 
 face = 1;               // 1 = olhando pra direita, -1 = esquerda
 chao = false;
 
-// escalar: 0 = solto, 1 = cano à direita, -1 = cano à esquerda
+// escalar o cano (vinha, no segundo plano): 0 = solto, 1 = agarrado
 escalando = 0;
-parede_esq = false;             // existe cano encostado à esquerda
-parede_dir = false;             // existe cano encostado à direita
+no_cipo = false;                // o corpo está na frente de um cano
+col_cipo = 0;                   // coluna (tile) do cano
+tecla_cima = false;             // W / seta pra cima (sobe no cano)
 
 tempo_coyote = 0;             // tempo extra para pular depois de sair da borda
 buffer_pulo = 0;        // lembra o botão de pulo apertado um pouco antes de tocar o chão
@@ -34,6 +35,10 @@ cabo_alvo = undefined;
 
 morto = false;
 tempo_morte = 0;
+desce_plat = 0;         // tempo atravessando uma plataforma de mão única (descendo)
+tempo_baixo_plat = 0;   // há quanto tempo segura S em cima de uma plataforma
+tempo_ar = 0;           // só desenho: tempo no ar (quadros do pulo)
+tempo_queda = 0;        // só desenho: tempo caindo (quadros da queda)
 escondido = false;      // dentro de um barril
 tempo_anim = 0;
 tempo_largou_cano = 0;            // tempo depois de soltar o cano
@@ -74,6 +79,7 @@ pega_input = function()
     tecla_esq = keyboard_check(ord("A")) or keyboard_check(vk_left);
     pulo_apertou = keyboard_check_pressed(vk_space) or keyboard_check_pressed(ord("W")) or keyboard_check_pressed(vk_up);
     pulo_segurando = keyboard_check(vk_space) or keyboard_check(ord("W")) or keyboard_check(vk_up);
+    tecla_cima = keyboard_check(ord("W")) or keyboard_check(vk_up);
     tecla_baixo = keyboard_check(ord("S")) or keyboard_check(vk_down);
     agarra_apertou = keyboard_check_pressed(ord("E"));
     roi_segurando = keyboard_check(ord("Q"));
@@ -85,18 +91,29 @@ pega_input = function()
     global.teclas.pulo_apertou = pulo_apertou; global.teclas.agarra_apertou = agarra_apertou; global.teclas.solta_apertou = solta_apertou;
 }
 
-// existe cano encostado nas laterais?
-detecta_parede = function()
+// o corpo está na frente de um cano? (o cano é segundo plano: não bate, só dá para agarrar)
+detecta_cipo = function()
 {
-    var meio = floor((y + 5) / TL);
-    parede_esq = cano_encosta(floor((x - 1) / TL), meio, x - 1);
-    parede_dir = cano_encosta(floor((x + w + 1) / TL), meio, x + w + 1);
+    col_cipo = floor((x + w / 2) / TL);
+    no_cipo = false;
+    for (var j = floor(y / TL); j <= floor((y + h - 1) / TL); j++)
+    {
+        if (tile_escalavel(col_cipo, j)) no_cipo = true;
+    }
+}
+
+// gruda no meio do cano
+agarra_cipo = function()
+{
+    escalando = 1;
+    velh = 0; velv = 0;
+    move_x_grade(self, col_cipo * TL + (TL - w) / 2 - x, solido_rato);
 }
 
 // no chão?
 checa_chao = function()
 {
-    chao = (tile_sobreposto({x: x, y: y + 1, w: w, h: h}, solido_rato) != undefined);
+    chao = (tile_sobreposto({x: x, y: y + 1, w: w, h: h}, solido_rato) != undefined) || (desce_plat <= 0 && plat_sob(self));
 }
 
 // ---------- empurrar caixas / ficar em cima delas ----------
@@ -142,7 +159,7 @@ tenta_roer = function()
             for (var q = 0; q < array_length(global.cabos); q++)
             {
                 var c = global.cabos[q];
-                if (!c.roido && point_distance(c.x, c.y, x + 5, y + 5) < 24)
+                if (!c.roido && point_distance(c.x, c.y, x + w / 2, y + h / 2) < 24)
                 {
                     roendo = 0.6; cabo_alvo = c; velh = 0;
                     return true;
@@ -153,13 +170,16 @@ tenta_roer = function()
     return false;
 }
 
-// E agarra ou solta o cano (clicar uma vez só)
+// E agarra ou solta o cano (clicar uma vez só). Segurar W no ar na frente do cano também agarra.
 alterna_agarrar = function()
 {
-    if (!agarra_apertou) return;
-    if (escalando != 0) { escalando = 0; tempo_largou_cano = 0.2; }
-    else if (global.tem_chave) return;
-    else if (parede_esq || parede_dir) escalando = (parede_dir && (!parede_esq || face > 0)) ? 1 : -1;
+    if (escalando != 0)
+    {
+        if (agarra_apertou) { escalando = 0; tempo_largou_cano = 0.2; }
+        return;
+    }
+    if (global.tem_chave || !no_cipo || tempo_largou_cano > 0) return;
+    if (agarra_apertou || (tecla_cima && !chao && velv >= 0)) agarra_cipo();
 }
 
 // ---------- morrer, espinhos e dutos (antes ficavam no obj_game) ----------
@@ -202,7 +222,7 @@ verifica_dutos = function()
     for (var q = 0; q < array_length(global.dutos); q++)
     {
         var duto = global.dutos[q];
-        if (point_distance(duto.x, duto.y, x + 5, y + 5) < 9) { duto_perto = duto; break; }
+        if (point_distance(duto.x, duto.y, x + w / 2, y + h / 2) < 9) { duto_perto = duto; break; }
     }
     if (duto_perto == noone) duto_atual = noone;
     else if (duto_atual == noone && tempo_duto <= 0 && teleporte == undefined && duto_perto.destino != noone)
@@ -230,7 +250,7 @@ estado_teleporte = function()
     if (q.tempo >= 0.25 && !q.meio)
     {
         q.meio = true;
-        x = q.destino.coluna * TL + 3; y = (q.destino.linha + 1) * TL - 10;
+        x = q.destino.coluna * TL + (TL - w) / 2; y = (q.destino.linha + 1) * TL - h;   // em pé, no centro do duto
         velh = 0; velv = 0;
         duto_atual = q.destino; tempo_duto = 0.5;
         faiscas(q.destino.x, q.destino.y, 10);
@@ -249,43 +269,34 @@ estado_roendo = function()
     }
 }
 
-// Escalando o cano: andar em direção à parede sobe, para o lado oposto desce.
+// Escalando o cano: W sobe, S desce, A/D andam de lado, espaço pula para fora, E solta.
 // Retorna true se o quadro foi consumido pela escalada; false se deve seguir pra física normal.
 estado_escalando = function()
 {
     var ax = tecla_dir - tecla_esq;
-    var sd = (escalando > 0) ? parede_dir : parede_esq;
-    var gnd = (tile_sobreposto({x: x, y: y + 1, w: w, h: h}, solido_rato) != undefined);
-    face = escalando;
+    var gnd = (tile_sobreposto({x: x, y: y + 1, w: w, h: h}, solido_rato) != undefined) || (desce_plat <= 0 && plat_sob(self));
     chao = gnd;
-    if (!sd) { escalando = 0; return false; }
-    if (pulo_apertou)
+    if (!no_cipo) { escalando = 0; return false; }
+    if (ax != 0) face = ax;
+    if (keyboard_check_pressed(vk_space))
     {
-        // pulo da parede
-        velh = -escalando * 130; velv = -260; escalando = 0; tempo_largou_cano = 0.25;
+        // pulo para fora do cano
+        velh = ax * 130; velv = -260; escalando = 0; tempo_largou_cano = 0.25;
         return false;
     }
     velh = 0; velv = 0;
     var d = 0;
-    if (ax * escalando > 0) d = -1;          // em direção à parede: sobe
-    else if (ax * escalando < 0) d = 1;      // para o lado oposto: desce
+    if (tecla_cima) d = -1;
+    else if (tecla_baixo) d = 1;
     if (d > 0 && gnd) { escalando = 0; return false; }
-    if (d < 0)
+    if (d < 0 && !tile_escalavel(col_cipo, floor((y + h - 6) / TL)))
     {
-        var coluna = floor(((escalando > 0) ? x + w + 1 : x - 1) / TL);
-        if (!solido_rato(coluna, floor((y - 2) / TL)))
-        {
-            // chegou no topo do cano: sobe em cima dele
-            var r = floor((y + h - 1) / TL);
-            while (tile_escalavel(coluna, r - 1)) r--;
-            y = r * TL - h;
-            x += escalando * 9;
-            escalando = 0;
-            chao = true;
-            return true;
-        }
+        // chegou no topo do cano: um pulinho para subir na borda
+        velh = ax * 80; velv = -170; escalando = 0; tempo_largou_cano = 0.2;
+        return false;
     }
     if (d != 0) move_y_grade(self, d * 70 * DT, solido_rato);
+    if (ax != 0) move_x_grade(self, ax * 50 * DT, solido_rato);
     return true;
 }
 
@@ -301,7 +312,7 @@ aplica_velocidade = function()
         for (var q = 0; q < array_length(global.barris); q++)
         {
             var bq = global.barris[q];
-            if (abs(bq.coluna * TL + 8 - x - 5) < 9 && abs((bq.linha + 1) * TL - y - h) < 3) escondido = true;
+            if (abs(bq.coluna * TL + 8 - x - w / 2) < 9 && abs((bq.linha + 1) * TL - y - h) < 3) escondido = true;
         }
     }
 
@@ -309,13 +320,22 @@ aplica_velocidade = function()
     velh += (tv - velh) * min(1, DT * (chao ? 20 : 10));
     if (ax != 0 && !escondido) face = ax;
 
+    // plataforma de mão única: S + pulo (ou segurar S um instante) desce atravessando
+    var so_plat = chao && desce_plat <= 0 && plat_sob(self) && tile_sobreposto({x: x, y: y + 1, w: w, h: h}, solido_rato) == undefined;
+    tempo_baixo_plat = (so_plat && tecla_baixo) ? tempo_baixo_plat + DT : 0;
+    if (so_plat && tecla_baixo && (pulo_apertou || tempo_baixo_plat > 0.3))
+    {
+        desce_plat = 0.25; pulo_apertou = false; buffer_pulo = 0; tempo_coyote = 0; tempo_baixo_plat = 0;
+        y += 1; chao = false;
+    }
+
     // pulo com buffer e coyote time
     if (pulo_apertou) buffer_pulo = 0.12;
     buffer_pulo -= DT;
     tempo_coyote = chao ? 0.1 : tempo_coyote - DT;
     if (buffer_pulo > 0 && tempo_coyote > 0 && !escondido)
     {
-        velv = global.tem_chave ? -230 : pulo_forca;   // com a chave na boca o pulo é mais fraco
+        velv = global.tem_chave ? -210 : pulo_forca;   // com a chave na boca o pulo é mais fraco
         buffer_pulo = 0; tempo_coyote = 0;
     }
     // soltar o botão corta o pulo (altura variável)
@@ -323,8 +343,8 @@ aplica_velocidade = function()
     if (!pulo_segurando && velv < corte) velv = corte;
 
     // vento das ventoinhas
-    var wi = floor((x + 5) / TL);
-    var wj = floor((y + 5) / TL);
+    var wi = floor((x + w / 2) / TL);
+    var wj = floor((y + h / 2) / TL);
     var wc = "";
     if (wi >= 0 && wi < GW && wj >= 0 && wj < GH) wc = global.mapa_vento[wj][wi];
     if (wc == "U" || wc == "n") { velv -= 1650 * DT; if (velv < -150) velv = -150; }
@@ -342,7 +362,7 @@ movimento = function()
     if (move_x_grade(self, velh * DT, solido_rato)) velh = 0;
     empurra_caixas();
     chao = false;
-    if (move_y_grade(self, velv * DT, solido_rato))
+    if (move_y_grade(self, velv * DT, solido_rato, desce_plat <= 0))
     {
         if (velv > 0) chao = true;
         velv = 0;
@@ -392,11 +412,12 @@ passo = function()
     if (global.estado != "play") return;     // menus e tela de sala concluída: o rato fica parado
     tempo_anim += DT;
     tempo_largou_cano -= DT;
+    desce_plat -= DT;
     tempo_duto -= DT;
     if (morto) { estado_morto(); return; }
     if (teleporte != undefined) { estado_teleporte(); return; }
     if (roendo > 0) { estado_roendo(); return; }
-    detecta_parede();
+    detecta_cipo();
     if (tenta_roer()) return;
     alterna_agarrar();
     if (escalando != 0)

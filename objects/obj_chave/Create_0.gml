@@ -63,12 +63,12 @@ atualiza = function()
     {
         velv = min(velv + 900 * DT, 400);
         if (move_x_grade(self, velh * DT, solido_rato)) velh = 0;
-        if (move_y_grade(self, velv * DT, solido_rato)) { if (velv > 0) velh = 0; velv = 0; }
+        if (move_y_grade(self, velv * DT, solido_rato, true)) { if (velv > 0) velh = 0; velv = 0; }
         tempo_livre += DT;
         if (toca_espinho()) { faiscas(x + 3, y + 3, 18); volta(true); return; }
         if (tempo_livre > 12 || y > GH * TL) volta();
     }
-    if (estado != "carried" && espera_pega <= 0 && p.escalando == 0 && point_distance(x + 3, y + 3, p.x + 5, p.y + 5) < 12)
+    if (estado != "carried" && espera_pega <= 0 && p.escalando == 0 && point_distance(x + 3, y + 3, p.x + p.w / 2, p.y + p.h / 2) < 12)
     {
         estado = "carried";
         global.tem_chave = true;

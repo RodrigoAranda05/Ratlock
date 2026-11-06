@@ -1,6 +1,6 @@
 // ===== colisão por grade =====
 // global.grade[linha][coluna] guarda um caractere por tile (montado no Room Start a partir das células):
-//   #  cano (dá para escalar)        S  pedra            f  parede falsa     ^  espinho       m  poça
+//   =  plataforma de mão única      #  cano/vinha (segundo plano, escala)        S  pedra            ^  espinho       m  poça
 //   v  ventilação                    1-4  dutos
 //   q Q j J  portões (4 cores)       a A e E  pisos de cor
 //   U u n R r Y y  ventoinhas        i I x z  lasers
@@ -13,22 +13,188 @@ function tile_em(_i, _j)
     return global.grade[_j][_i];
 }
 
+// só visual: vizinho conta como pedra se for pedra
+function pedra_visual(_i, _j)
+{
+    if (_i < 0 || _i >= GW || _j < 0 || _j >= GH) return true;   // fora da sala conta como pedra (igual ao criador)
+    var c = tile_em(_i, _j);
+    return c == "S";
+}
+
+// Blocos do tileset (spr_pedra). Os argumentos dizem se o lado/diagonal está LIVRE (sem pedra):
+// cima, baixo, esq, dir e as diagonais ce (cima-esq.), cd (cima-dir.), be (baixo-esq.), bd (baixo-dir.).
+//   0 parede esq.   1 parede dir.   2 teto   3 chão   4-7 cantos (sup-esq, sup-dir, inf-esq, inf-dir)
+//   8-11 canto de dentro (inf-dir, inf-esq, sup-dir, sup-esq)   12-13 pontas da plataforma (esq., dir.)
+//   14-15 pontas do pilar (cima, baixo)   16-19 dois cantos de dentro juntos (em cima, embaixo, à esq., à dir.)
+//   20 miolo liso   21 meio da plataforma   22 meio do pilar
+//   23-25 teto + canto de dentro embaixo (esq., dir., os dois)       26-28 chão + canto de dentro em cima (esq., dir., os dois)
+//   29-30 parede esq./dir. + canto de dentro (inf-dir./inf-esq.)       31-32 parede esq./dir. + canto de dentro (sup-dir./sup-esq.)
+//   33-34 parede esq./dir. + os dois cantos de dentro                  35 quatro cantos de dentro
+//   36-39 três cantos de dentro (falta o inf-dir., inf-esq., sup-dir., sup-esq.)
+//   40-43 quina (sup-esq., sup-dir., inf-esq., inf-dir.) + canto de dentro do lado oposto
+// Combinação sem bloco no tileset: usa o mais parecido (pedra solta usa 12; cantos de dentro opostos usam 11/10).
+function bloco_pedra(_cima, _baixo, _esq, _dir, _ce, _cd, _be, _bd, _i, _j)
+{
+    var livres = (_cima ? 1 : 0) + (_baixo ? 1 : 0) + (_esq ? 1 : 0) + (_dir ? 1 : 0);
+
+    if (livres == 4) return 12;                      // pedra solta
+    if (livres == 3)                                 // pontas
+    {
+        if (!_dir) return 12;                        // ponta esquerda da plataforma
+        if (!_esq) return 13;                        // ponta direita
+        if (!_baixo) return 14;                      // ponta de cima do pilar
+        return 15;                                   // ponta de baixo do pilar
+    }
+    if (livres == 2)
+    {
+        if (_cima && _baixo) return 21;              // meio da plataforma fina
+        if (_esq && _dir) return 22;                 // meio do pilar fino
+        if (_cima && _esq) return _bd ? 40 : 4;      // quina + canto de dentro do lado oposto
+        if (_cima && _dir) return _be ? 41 : 5;
+        if (_baixo && _esq) return _cd ? 42 : 6;
+        return _ce ? 43 : 7;
+    }
+    if (livres == 1)                                 // um lado livre: os cantos de dentro do lado oposto contam
+    {
+        if (_cima)
+        {
+            if (_be && _bd) return 25;
+            if (_be) return 23;
+            if (_bd) return 24;
+            return 2;
+        }
+        if (_baixo)
+        {
+            if (_ce && _cd) return 28;
+            if (_ce) return 26;
+            if (_cd) return 27;
+            return 3;
+        }
+        if (_esq)
+        {
+            if (_cd && _bd) return 33;
+            if (_bd) return 29;
+            if (_cd) return 31;
+            return 0;
+        }
+        if (_ce && _be) return 34;
+        if (_be) return 30;
+        if (_ce) return 32;
+        return 1;
+    }
+    // nenhum lado livre: só sobram os cantos de dentro
+    var cantos = (_ce ? 1 : 0) + (_cd ? 1 : 0) + (_be ? 1 : 0) + (_bd ? 1 : 0);
+    if (cantos == 4) return 35;
+    if (cantos == 3)
+    {
+        if (!_bd) return 36;
+        if (!_be) return 37;
+        if (!_cd) return 38;
+        return 39;
+    }
+    if (cantos == 2)
+    {
+        if (_ce && _cd) return 16;
+        if (_be && _bd) return 17;
+        if (_ce && _be) return 18;
+        if (_cd && _bd) return 19;
+        return _ce ? 11 : 10;                        // opostos: sem bloco próprio
+    }
+    if (_ce) return 11;
+    if (_cd) return 10;
+    if (_be) return 9;
+    if (_bd) return 8;
+    return 20;
+}
+
+function quadro_pedra(_i, _j)
+{
+    return bloco_pedra(!pedra_visual(_i, _j - 1), !pedra_visual(_i, _j + 1), !pedra_visual(_i - 1, _j), !pedra_visual(_i + 1, _j),
+        !pedra_visual(_i - 1, _j - 1), !pedra_visual(_i + 1, _j - 1), !pedra_visual(_i - 1, _j + 1), !pedra_visual(_i + 1, _j + 1), _i, _j);
+}
+
+// Quadros do spr_cano: 0 vertical, 1 cima+direita, 2 cima+esquerda, 3 baixo+direita, 4 baixo+esquerda,
+// 5 horizontal, 6 cruz, 7 esq.+dir.+baixo, 8 esq.+dir.+cima, 9 cima+baixo+esq., 10 cima+baixo+dir.
+// Os argumentos dizem se o vizinho de cima/baixo/esquerda/direita também é cano.
+// _pedra_e/_pedra_d/_pedra_c/_pedra_b: tem pedra à esquerda/direita/em cima/embaixo. A ponta solta do cano faz a curva e "sai" da pedra
+// (vertical vira para o lado, horizontal vira para cima ou para baixo).
+function quadro_cano(_cima, _baixo, _esq, _dir, _pedra_e = false, _pedra_d = false, _pedra_c = false, _pedra_b = false)
+{
+    var n = (_cima ? 1 : 0) + (_baixo ? 1 : 0) + (_esq ? 1 : 0) + (_dir ? 1 : 0);
+    if (n == 1 && (_cima || _baixo) && (_pedra_d || _pedra_e))
+    {
+        var pd = _pedra_d;                                  // as duas paredes: sai pela direita
+        if (_cima) return pd ? 1 : 2;
+        return pd ? 3 : 4;
+    }
+    if (n == 1 && (_esq || _dir) && (_pedra_c || _pedra_b))
+    {
+        // ponta de cano horizontal junto de teto/chão: curva para cima ou para baixo (cima tem preferência)
+        if (_pedra_c) return _dir ? 1 : 2;
+        return _dir ? 3 : 4;
+    }
+    if (n == 4) return 6;
+    if (n == 3)
+    {
+        if (!_cima) return 7;
+        if (!_baixo) return 8;
+        if (!_dir) return 9;
+        return 10;
+    }
+    if (n == 2)
+    {
+        if (_cima && _baixo) return 0;
+        if (_esq && _dir) return 5;
+        if (_cima) return _dir ? 1 : 2;
+        return _dir ? 3 : 4;
+    }
+    if (n == 1) return (_esq || _dir) ? 5 : 0;
+    return 0;
+}
+
+// Quadros do spr_plataforma: 8 solta, 5 ponta esquerda, 6 ponta direita, 2 meio, 3 ponta esquerda presa na parede,
+// 4 ponta direita presa na parede, 7 solta presa na parede da esquerda.
+function quadro_plataforma(_pe, _pd, _parede_e, _parede_d)
+{
+    if (!_pe && !_pd) return _parede_e ? 7 : 8;
+    if (!_pe) return _parede_e ? 3 : 5;
+    if (!_pd) return _parede_d ? 4 : 6;
+    return 2;
+}
+
+// onde (em x, dentro do tile) cada quadro do spr_plataforma é sólido: as pontas só têm barra de um lado
+function span_plataforma(_q)
+{
+    var sp = [[1, 15], [0, 16], [0, 16], [0, 16], [0, 16], [8, 16], [0, 7], [0, 14], [1, 15]];
+    return sp[_q];
+}
+
+// o tile (_i,_j) é plataforma e o corpo (_x0.._x1) está sobre a parte que tem barra?
+function plat_tile(_i, _j, _x0, _x1)
+{
+    if (tile_em(_i, _j) != "=") return false;
+    var sp = global.plat_span[_j][_i];
+    return _x1 > _i * TL + sp[0] && _x0 < _i * TL + sp[1];
+}
+
+// plataforma de mão única (=): os pés do corpo estão em cima dela?
+function plat_sob(_o)
+{
+    var fim = _o.y + _o.h;
+    var j = floor((fim + 1) / TL);
+    if (fim > j * TL + 0.01) return false;
+    var x0 = floor(_o.x / TL);
+    var x1 = floor((_o.x + _o.w - 0.01) / TL);
+    for (var i = x0; i <= x1; i++)
+    {
+        if (plat_tile(i, j, _o.x, _o.x + _o.w)) return true;
+    }
+    return false;
+}
+
 function tile_escalavel(_i, _j)
 {
     return tile_em(_i, _j) == "#";
-}
-
-// O cano é fino: só a faixa do meio do tile (CANO_E..CANO_D) é sólida, o resto do tile é vazio.
-// _x0.._x1 é a faixa horizontal do corpo que está sendo testado.
-function cano_bate(_i, _x0, _x1)
-{
-    return _x1 > _i * TL + CANO_E && _x0 < _i * TL + CANO_D;
-}
-
-// o corpo toca o cano do tile _i? (usado para agarrar na lateral)
-function cano_encosta(_i, _j, _x)
-{
-    return tile_escalavel(_i, _j) && _x >= _i * TL + CANO_E && _x <= _i * TL + CANO_D;
 }
 
 function dir_ventoinha(_c)
@@ -85,7 +251,7 @@ function cor_do_piso(_c)
 function solido_rato(_i, _j)
 {
     var c = tile_em(_i, _j);
-    if (c == "#" || c == "S") return true;
+    if (c == "S") return true;       // o cano (#) é segundo plano: não bate em ninguém
     var g = cor_do_portao(c);
     if (g >= 0 && global.cor_ativa != g) return true;       // portão fechado
     if (dir_ventoinha(c) != undefined) return true;          // ventoinha
@@ -121,7 +287,6 @@ function tile_sobreposto(_o, _s)
         for (var i = x0; i <= x1; i++)
         {
             if (!_s(i, j)) continue;
-            if (tile_em(i, j) == "#" && !cano_bate(i, _o.x, _o.x + _o.w)) continue;   // cano fino: passou pelo lado
             return [i, j];
         }
     }
@@ -134,23 +299,39 @@ function move_x_grade(_o, _d, _s)
     var h = tile_sobreposto(_o, _s);
     if (h != undefined)
     {
-        var cano = (tile_em(h[0], h[1]) == "#");
-        var borda_e = h[0] * TL + (cano ? CANO_E : 0);
-        var borda_d = (h[0] + 1) * TL - (cano ? TL - CANO_D : 0);
-        _o.x = (_d > 0) ? borda_e - _o.w : borda_d;
+        _o.x = (_d > 0) ? h[0] * TL - _o.w : (h[0] + 1) * TL;
         return true;
     }
     return false;
 }
 
-function move_y_grade(_o, _d, _s)
+// _plat = true: plataformas de mão única (=) seguram quem vem de cima
+function move_y_grade(_o, _d, _s, _plat = false)
 {
+    var antes = _o.y + _o.h;
     _o.y += _d;
     var h = tile_sobreposto(_o, _s);
     if (h != undefined)
     {
         _o.y = (_d > 0) ? h[1] * TL - _o.h : (h[1] + 1) * TL;
         return true;
+    }
+    if (_plat && _d > 0)
+    {
+        var j = floor((_o.y + _o.h) / TL);
+        if (antes <= j * TL + 0.01)
+        {
+            var x0 = floor(_o.x / TL);
+            var x1 = floor((_o.x + _o.w - 0.01) / TL);
+            for (var i = x0; i <= x1; i++)
+            {
+                if (plat_tile(i, j, _o.x, _o.x + _o.w))
+                {
+                    _o.y = j * TL - _o.h;
+                    return true;
+                }
+            }
+        }
     }
     return false;
 }

@@ -70,7 +70,7 @@ slot_y = function(_s) { return paleta_y + floor(_s / 6) * 22; }
 
 slot_sob_mouse = function()
 {
-    for (var s = 0; s <= array_length(global.pecas); s++)
+    for (var s = 0; s <= array_length(global.pecas_vis); s++)
     {
         if (mx >= slot_x(s) && mx < slot_x(s) + 20 && my >= slot_y(s) && my < slot_y(s) + 20) return s;
     }
@@ -103,7 +103,9 @@ botao_sob_mouse = function()
 
 escolhe_peca = function(_i)
 {
+    var passo = (_i < sel) ? -1 : 1;
     sel = clamp(_i, -1, array_length(global.pecas) - 1);
+    while (sel >= 0 && global.pecas[sel].oculta) sel = clamp(sel + passo, -1, array_length(global.pecas) - 1);   // pula peça removida
     var_sel = 0;
 }
 
@@ -308,7 +310,27 @@ desenha_editor = function()
         for (var i = 0; i < CRIADOR_COL; i++)
         {
             var c = ed.grade[j][i];
-            if (c >= 0) desenha_peca(floor(c / 8), c % 8, grade_x + i * TL, grade_y + j * TL, 1, 1);
+            if (c < 0) continue;
+            var k = global.pecas[floor(c / 8)].k;
+            if (k == "pedra")
+            {
+                // pedra escolhe o bloco do tileset pelos vizinhos, igual ao jogo
+                var q = bloco_pedra(!editor_pedra(i, j - 1), !editor_pedra(i, j + 1), !editor_pedra(i - 1, j), !editor_pedra(i + 1, j),
+                    !editor_pedra(i - 1, j - 1), !editor_pedra(i + 1, j - 1), !editor_pedra(i - 1, j + 1), !editor_pedra(i + 1, j + 1), i, j);
+                draw_sprite(spr_pedra, q, grade_x + i * TL, grade_y + j * TL);
+            }
+            else if (k == "cano")
+            {
+                var qc = quadro_cano(editor_tem(i, j - 1, "cano"), editor_tem(i, j + 1, "cano"), editor_tem(i - 1, j, "cano"), editor_tem(i + 1, j, "cano"),
+                    editor_pedra(i - 1, j), editor_pedra(i + 1, j), editor_pedra(i, j - 1), editor_pedra(i, j + 1));
+                draw_sprite(spr_cano, qc, grade_x + i * TL, grade_y + j * TL);
+            }
+            else if (k == "plataforma")
+            {
+                var qp = quadro_plataforma(editor_tem(i - 1, j, "plataforma"), editor_tem(i + 1, j, "plataforma"), editor_tem(i - 1, j, "pedra"), editor_tem(i + 1, j, "pedra"));
+                draw_sprite(spr_plataforma, qp, grade_x + i * TL, grade_y + j * TL);
+            }
+            else desenha_peca(floor(c / 8), c % 8, grade_x + i * TL, grade_y + j * TL, 1, 1);
         }
     }
 
@@ -324,18 +346,18 @@ desenha_editor = function()
 
     // paleta
     var sob = slot_sob_mouse();
-    for (var s = 0; s <= array_length(global.pecas); s++)
+    for (var s = 0; s <= array_length(global.pecas_vis); s++)
     {
         var px = slot_x(s), py = slot_y(s);
+        var ps = (s == 0) ? -1 : global.pecas_vis[s - 1];
         if (s == sob) desenha_rect(px, py, 20, 20, 0x2a3750);
         if (s == 0) desenha_texto("X", px + 10, py + 11, 0xff6b5e, "center", 14);
         else
         {
-            var pc = global.pecas[s - 1];
-            var e = pc.esc;
-            desenha_peca(s - 1, (s - 1 == sel) ? var_sel : 0, px + 10 - 8 * e, py + 20 - 16 * e, e, 1);
+            var e = global.pecas[ps].esc;
+            desenha_peca(ps, (ps == sel) ? var_sel : 0, px + 10 - 8 * e, py + 20 - 16 * e, e, 1);
         }
-        if (s - 1 == sel) desenha_moldura(px, py, 20, 20);
+        if (ps == sel) desenha_moldura(px, py, 20, 20);
     }
 
     // botões

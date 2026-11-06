@@ -10,13 +10,14 @@
 
 #region peças
 
-function nova_peca(_k, _nome, _obj, _nvar, _unica, _esc)
+function nova_peca(_k, _nome, _obj, _nvar, _unica, _esc, _oculta = false)
 {
-    return {k: _k, nome: _nome, obj: _obj, nvar: _nvar, unica: _unica, esc: _esc};
+    return {k: _k, nome: _nome, obj: _obj, nvar: _nvar, unica: _unica, esc: _esc, oculta: _oculta};
 }
 
 // ATENÇÃO: a ordem desta lista faz parte do código de compartilhar. Só acrescente peças no FIM.
 // esc = escala do ícone na paleta (peças altas ficam menores).
+// oculta = peça removida do jogo: continua na lista só para não mudar o número das outras (não aparece na paleta nem entra na fase).
 function carrega_pecas()
 {
     global.pecas = [
@@ -24,7 +25,7 @@ function carrega_pecas()
         nova_peca("chave", "Chave", obj_chave, 1, true, 1),
         nova_peca("porta", "Porta (saída)", obj_porta, 1, true, 0.6),
         nova_peca("pedra", "Pedra", obj_pedra, 1, false, 1),
-        nova_peca("pedra_falsa", "Parede falsa", obj_pedra_falsa, 1, false, 1),
+        nova_peca("pedra_falsa", "Parede falsa (removida)", obj_pedra, 1, false, 1, true),
         nova_peca("cano", "Cano (escalar)", obj_cano, 1, false, 1),
         nova_peca("espinho", "Espinho", obj_espinho, 1, false, 1),
         nova_peca("poca", "Poça", obj_poca, 1, false, 1),
@@ -47,8 +48,14 @@ function carrega_pecas()
         nova_peca("eletricista", "Eletricista", obj_eletricista, 1, false, 0.9),
         nova_peca("cao", "Cão farejador", obj_cao, 1, false, 1),
         nova_peca("cacador", "Caçador", obj_cacador, 1, false, 1),
-        nova_peca("sentinela", "Sentinela", obj_sentinela, 1, false, 0.8)
+        nova_peca("sentinela", "Sentinela", obj_sentinela, 1, false, 0.8),
+        nova_peca("plataforma", "Plataforma (sobe por baixo)", obj_plataforma, 1, false, 1)
     ];
+    global.pecas_vis = [];                      // índices das peças que aparecem na paleta
+    for (var p = 0; p < array_length(global.pecas); p++)
+    {
+        if (!global.pecas[p].oculta) array_push(global.pecas_vis, p);
+    }
     global.cores_nomes = ["vermelho", "azul", "verde", "amarelo"];
     global.dir_nomes = ["direita", "cima", "esquerda", "baixo"];
 }
@@ -111,8 +118,8 @@ function sprite_peca(_i, _v)
         case "chave": return spr_ed_chave;
         case "porta": return spr_ed_porta;
         case "pedra": return spr_pedra;
-        case "pedra_falsa": return spr_pedra_falsa;
         case "cano": return spr_cano;
+        case "plataforma": return spr_plataforma;
         case "espinho": return spr_espinho;
         case "poca": return spr_poca;
         case "ventilacao": return spr_ventilacao;
@@ -151,6 +158,8 @@ function quadro_peca(_i, _v)
         case "ventoinha": return floor(global.tempo_jogo * 12) % 4;
         case "botao": return (_v >= 4) ? 1 : 0;
         case "laser": return [0, 3, 1, 2][_v] * 4;
+        case "pedra": return 4;
+        case "plataforma": return 8;
     }
     return 0;
 }
@@ -159,6 +168,25 @@ function quadro_peca(_i, _v)
 function desenha_peca(_i, _v, _x, _y, _esc, _alfa)
 {
     draw_sprite_ext(sprite_peca(_i, _v), quadro_peca(_i, _v), _x, _y, _esc, _esc, 0, c_white, _alfa);
+}
+
+// a célula do editor tem a peça _k? (para emendar canos e plataformas)
+function editor_tem(_i, _j, _k)
+{
+    if (_i < 0 || _j < 0 || _i >= CRIADOR_COL || _j >= CRIADOR_LIN) return false;
+    var c = global.ed.grade[_j][_i];
+    if (c < 0) return false;
+    return global.pecas[floor(c / 8)].k == _k;
+}
+
+// o editor emenda o visual da pedra pelos vizinhos (fora da grade conta como pedra)
+function editor_pedra(_i, _j)
+{
+    if (_i < 0 || _j < 0 || _i >= CRIADOR_COL || _j >= CRIADOR_LIN) return true;
+    var c = global.ed.grade[_j][_i];
+    if (c < 0) return false;
+    var k = global.pecas[floor(c / 8)].k;
+    return k == "pedra";
 }
 
 #endregion
@@ -333,7 +361,7 @@ function decodifica_fase(_texto)
         if (pos >= CRIADOR_COL * CRIADOR_LIN) return undefined;
         var idx = floor(c / 8);
         if (idx >= array_length(global.pecas) || c % 8 >= global.pecas[idx].nvar) return undefined;
-        g[floor(pos / CRIADOR_COL)][pos % CRIADOR_COL] = c;
+        if (!global.pecas[idx].oculta) g[floor(pos / CRIADOR_COL)][pos % CRIADOR_COL] = c;   // peça removida some da fase
         pos++;
     }
     if (p != fim + 1) return undefined;

@@ -85,8 +85,9 @@ if (mouse_check_button_pressed(mb_left))
     var b = botao_sob_mouse();
     if (s >= 0)
     {
-        if (s - 1 == sel) gira_variante();       // clicar de novo na peça escolhida troca a variante
-        else escolhe_peca(s - 1);
+        var ps = (s == 0) ? -1 : global.pecas_vis[s - 1];
+        if (ps == sel) gira_variante();       // clicar de novo na peça escolhida troca a variante
+        else escolhe_peca(ps);
     }
     else if (b >= 0) executa_acao(botoes[b].acao);
 }
