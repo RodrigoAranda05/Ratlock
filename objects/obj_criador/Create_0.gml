@@ -33,7 +33,8 @@ botoes = [
     {texto: "TESTAR  (T)", acao: "testar"},
     {texto: "SALVAR  (S)", acao: "salvar"},
     {texto: "NOME  (N)", acao: "nome"},
-    {texto: "COPIAR CÓDIGO  (C)", acao: "copiar"}
+    {texto: "COPIAR CÓDIGO  (C)", acao: "copiar"},
+    {texto: "", acao: "forma"}      // formato da pedra: o texto é montado no desenho
 ];
 
 #endregion
@@ -116,12 +117,36 @@ gira_variante = function()
 }
 
 // põe (ou apaga) uma peça numa célula. Qualquer mudança tira a validação da fase.
-aplica_celula = function(_i, _j, _apaga)
+// A pedra grande ocupa vários tiles a partir do canto de cima-esquerda (a célula do mouse). Apagar tira o bloco inteiro.
+// _novo_clique: true no primeiro clique; arrastando, o bloco grande não passa por cima de outras peças.
+aplica_celula = function(_i, _j, _apaga, _novo_clique = true)
 {
     var ed = global.ed;
-    var novo = (_apaga || sel < 0) ? -1 : sel * 8 + var_sel;
+    if (_apaga || sel < 0)
+    {
+        var o = pedra_que_cobre(ed.grade, _i, _j);
+        if (o != undefined) { ed.grade[o[1]][o[0]] = -1; ed.validada = false; }
+        else if (ed.grade[_j][_i] >= 0) { ed.grade[_j][_i] = -1; ed.validada = false; }
+        return;
+    }
+    var novo = sel * 8 + var_sel;
+    var eh_pedra = (global.pecas[sel].k == "pedra");
+    var forma = eh_pedra ? var_sel : 0;
+    if (!pedra_cabe(_i, _j, forma)) return;
     if (ed.grade[_j][_i] == novo) return;
-    if (novo >= 0 && global.pecas[sel].unica)
+    var fl = pedra_larg(forma);
+    var fa = pedra_alt(forma);
+    if (!_novo_clique && (fl > 1 || fa > 1))
+    {
+        for (var dj = 0; dj < fa; dj++)
+        {
+            for (var di = 0; di < fl; di++)
+            {
+                if (ed.grade[_j + dj][_i + di] >= 0 || pedra_que_cobre(ed.grade, _i + di, _j + dj) != undefined) return;
+            }
+        }
+    }
+    if (global.pecas[sel].unica)
     {
         // rato, chave e porta só existem uma vez: a anterior sai do lugar
         for (var j = 0; j < CRIADOR_LIN; j++)
@@ -130,6 +155,16 @@ aplica_celula = function(_i, _j, _apaga)
             {
                 if (ed.grade[j][i] >= 0 && floor(ed.grade[j][i] / 8) == sel) ed.grade[j][i] = -1;
             }
+        }
+    }
+    // limpa o que estiver na área (inclusive pedras que cobrem essas células)
+    for (var dj = 0; dj < fa; dj++)
+    {
+        for (var di = 0; di < fl; di++)
+        {
+            var o = pedra_que_cobre(ed.grade, _i + di, _j + dj);
+            if (o != undefined) ed.grade[o[1]][o[0]] = -1;
+            ed.grade[_j + dj][_i + di] = -1;
         }
     }
     ed.grade[_j][_i] = novo;
@@ -191,6 +226,12 @@ executa_acao = function(_a)
     else if (_a == "salvar") salvar();
     else if (_a == "nome") { nomeando = true; salva_depois_do_nome = false; keyboard_string = global.ed.nome; }
     else if (_a == "copiar") copiar_codigo(global.ed);
+    else if (_a == "forma")
+    {
+        // troca o formato da pedra: 16x16 -> 32x32 -> 16x32 -> 32x16 (se não era a pedra, só escolhe a pedra no 16x16)
+        if (sel != indice_peca("pedra")) escolhe_peca(indice_peca("pedra"));
+        else gira_variante();
+    }
 }
 
 #endregion
@@ -314,10 +355,8 @@ desenha_editor = function()
             var k = global.pecas[floor(c / 8)].k;
             if (k == "pedra")
             {
-                // pedra escolhe o bloco do tileset pelos vizinhos, igual ao jogo
-                var q = bloco_pedra(!editor_pedra(i, j - 1), !editor_pedra(i, j + 1), !editor_pedra(i - 1, j), !editor_pedra(i + 1, j),
-                    !editor_pedra(i - 1, j - 1), !editor_pedra(i + 1, j - 1), !editor_pedra(i - 1, j + 1), !editor_pedra(i + 1, j + 1), i, j);
-                draw_sprite(spr_pedra, q, grade_x + i * TL, grade_y + j * TL);
+                // os blocos não se ligam: cada um é desenhado no formato dele a partir do canto de cima-esquerda
+                draw_sprite(pedra_sprite(c % 8), 0, grade_x + i * TL, grade_y + j * TL);
             }
             else if (k == "cano")
             {
@@ -340,8 +379,11 @@ desenha_editor = function()
     {
         var cx = grade_x + cel[0] * TL;
         var cy = grade_y + cel[1] * TL;
+        var pl = 1, pa = 1;
+        if (sel >= 0 && global.pecas[sel].k == "pedra") { pl = pedra_larg(var_sel); pa = pedra_alt(var_sel); }
         if (sel >= 0) desenha_peca(sel, var_sel, cx, cy, 1, 0.55);
-        desenha_rect_alfa(cx, cy, TL, TL, (sel < 0) ? 0xff4030 : 0xffd84a, 0.22);
+        var cabe = pedra_cabe(cel[0], cel[1], (sel >= 0 && global.pecas[sel].k == "pedra") ? var_sel : 0);
+        desenha_rect_alfa(cx, cy, pl * TL, pa * TL, (sel < 0 || !cabe) ? 0xff4030 : 0xffd84a, 0.22);
     }
 
     // paleta
@@ -355,7 +397,7 @@ desenha_editor = function()
         else
         {
             var e = global.pecas[ps].esc;
-            desenha_peca(ps, (ps == sel) ? var_sel : 0, px + 10 - 8 * e, py + 20 - 16 * e, e, 1);
+            desenha_peca(ps, (ps == sel && global.pecas[ps].k != "pedra") ? var_sel : 0, px + 10 - 8 * e, py + 20 - 16 * e, e, 1);
         }
         if (ps == sel) desenha_moldura(px, py, 20, 20);
     }
@@ -368,10 +410,17 @@ desenha_editor = function()
         if (n == bsob) desenha_rect(paleta_x, by, 144, 14, 0x2a3750);
         var bcor = 0xf3efe6;
         if (botoes[n].acao == "salvar" || botoes[n].acao == "copiar") bcor = ed.validada ? 0x4ade80 : 0x5b6578;
-        desenha_texto(botoes[n].texto, paleta_x + 72, by + 8, bcor, "center", 9);
+        var btxt = botoes[n].texto;
+        if (botoes[n].acao == "forma")
+        {
+            var na_pedra = (sel == indice_peca("pedra"));
+            btxt = "PEDRA: " + nome_variante(indice_peca("pedra"), na_pedra ? var_sel : 0) + "  (R)";
+            bcor = na_pedra ? 0xffd84a : 0xf3efe6;
+        }
+        desenha_texto(btxt, paleta_x + 72, by + 8, bcor, "center", 9);
     }
 
-    desenha_texto("Clique: pôr  ·  Botão direito: apagar  ·  Roda ou Q/E: trocar peça  ·  R: cor/direção", 6, 214, 0x7d8798, "left", 9);
+    desenha_texto("Clique: pôr  ·  Botão direito: apagar  ·  Roda ou Q/E: trocar peça  ·  R: cor/direção/formato", 6, 214, 0x7d8798, "left", 9);
     desenha_texto("T: testar  ·  S: salvar  ·  C: copiar código  ·  N: nome  ·  X: limpar  ·  Esc: voltar", 6, 228, 0x7d8798, "left", 9);
     desenha_texto("Para salvar ou compartilhar, passe da fase no teste (sem cheats).", 6, 244, 0x5b6578, "left", 9);
 

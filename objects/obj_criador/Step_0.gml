@@ -94,6 +94,6 @@ if (mouse_check_button_pressed(mb_left))
 var cel = celula_sob_mouse();
 if (cel != undefined)
 {
-    if (mouse_check_button(mb_left)) aplica_celula(cel[0], cel[1], false);
+    if (mouse_check_button(mb_left)) aplica_celula(cel[0], cel[1], false, mouse_check_button_pressed(mb_left));
     else if (mouse_check_button(mb_right)) aplica_celula(cel[0], cel[1], true);
 }

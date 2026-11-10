@@ -1,2 +1,3 @@
-// pedra com borda clara só nos lados expostos (o bloco do tileset depende de quais lados estão expostos)
-draw_sprite(spr_pedra, quadro_pedra(coluna, linha), x, y);
+// o desenho é o do formato (spr_pedra, spr_pedra_g, spr_pedra_a, spr_pedra_l), sem ligar com os vizinhos
+aplica_forma();
+draw_sprite(sprite_index, 0, x, y);

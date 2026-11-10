@@ -13,104 +13,26 @@ function tile_em(_i, _j)
     return global.grade[_j][_i];
 }
 
-// só visual: vizinho conta como pedra se for pedra
-function pedra_visual(_i, _j)
+// Formas da pedra (novo estilo, os blocos não se ligam): 0 = 16x16, 1 = 32x32, 2 = 16x32 (em pé), 3 = 32x16 (deitado)
+function pedra_larg(_forma)
 {
-    if (_i < 0 || _i >= GW || _j < 0 || _j >= GH) return true;   // fora da sala conta como pedra (igual ao criador)
-    var c = tile_em(_i, _j);
-    return c == "S";
+    return (_forma == 1 || _forma == 3) ? 2 : 1;
 }
 
-// Blocos do tileset (spr_pedra). Os argumentos dizem se o lado/diagonal está LIVRE (sem pedra):
-// cima, baixo, esq, dir e as diagonais ce (cima-esq.), cd (cima-dir.), be (baixo-esq.), bd (baixo-dir.).
-//   0 parede esq.   1 parede dir.   2 teto   3 chão   4-7 cantos (sup-esq, sup-dir, inf-esq, inf-dir)
-//   8-11 canto de dentro (inf-dir, inf-esq, sup-dir, sup-esq)   12-13 pontas da plataforma (esq., dir.)
-//   14-15 pontas do pilar (cima, baixo)   16-19 dois cantos de dentro juntos (em cima, embaixo, à esq., à dir.)
-//   20 miolo liso   21 meio da plataforma   22 meio do pilar
-//   23-25 teto + canto de dentro embaixo (esq., dir., os dois)       26-28 chão + canto de dentro em cima (esq., dir., os dois)
-//   29-30 parede esq./dir. + canto de dentro (inf-dir./inf-esq.)       31-32 parede esq./dir. + canto de dentro (sup-dir./sup-esq.)
-//   33-34 parede esq./dir. + os dois cantos de dentro                  35 quatro cantos de dentro
-//   36-39 três cantos de dentro (falta o inf-dir., inf-esq., sup-dir., sup-esq.)
-//   40-43 quina (sup-esq., sup-dir., inf-esq., inf-dir.) + canto de dentro do lado oposto
-// Combinação sem bloco no tileset: usa o mais parecido (pedra solta usa 12; cantos de dentro opostos usam 11/10).
-function bloco_pedra(_cima, _baixo, _esq, _dir, _ce, _cd, _be, _bd, _i, _j)
+function pedra_alt(_forma)
 {
-    var livres = (_cima ? 1 : 0) + (_baixo ? 1 : 0) + (_esq ? 1 : 0) + (_dir ? 1 : 0);
-
-    if (livres == 4) return 12;                      // pedra solta
-    if (livres == 3)                                 // pontas
-    {
-        if (!_dir) return 12;                        // ponta esquerda da plataforma
-        if (!_esq) return 13;                        // ponta direita
-        if (!_baixo) return 14;                      // ponta de cima do pilar
-        return 15;                                   // ponta de baixo do pilar
-    }
-    if (livres == 2)
-    {
-        if (_cima && _baixo) return 21;              // meio da plataforma fina
-        if (_esq && _dir) return 22;                 // meio do pilar fino
-        if (_cima && _esq) return _bd ? 40 : 4;      // quina + canto de dentro do lado oposto
-        if (_cima && _dir) return _be ? 41 : 5;
-        if (_baixo && _esq) return _cd ? 42 : 6;
-        return _ce ? 43 : 7;
-    }
-    if (livres == 1)                                 // um lado livre: os cantos de dentro do lado oposto contam
-    {
-        if (_cima)
-        {
-            if (_be && _bd) return 25;
-            if (_be) return 23;
-            if (_bd) return 24;
-            return 2;
-        }
-        if (_baixo)
-        {
-            if (_ce && _cd) return 28;
-            if (_ce) return 26;
-            if (_cd) return 27;
-            return 3;
-        }
-        if (_esq)
-        {
-            if (_cd && _bd) return 33;
-            if (_bd) return 29;
-            if (_cd) return 31;
-            return 0;
-        }
-        if (_ce && _be) return 34;
-        if (_be) return 30;
-        if (_ce) return 32;
-        return 1;
-    }
-    // nenhum lado livre: só sobram os cantos de dentro
-    var cantos = (_ce ? 1 : 0) + (_cd ? 1 : 0) + (_be ? 1 : 0) + (_bd ? 1 : 0);
-    if (cantos == 4) return 35;
-    if (cantos == 3)
-    {
-        if (!_bd) return 36;
-        if (!_be) return 37;
-        if (!_cd) return 38;
-        return 39;
-    }
-    if (cantos == 2)
-    {
-        if (_ce && _cd) return 16;
-        if (_be && _bd) return 17;
-        if (_ce && _be) return 18;
-        if (_cd && _bd) return 19;
-        return _ce ? 11 : 10;                        // opostos: sem bloco próprio
-    }
-    if (_ce) return 11;
-    if (_cd) return 10;
-    if (_be) return 9;
-    if (_bd) return 8;
-    return 20;
+    return (_forma == 1 || _forma == 2) ? 2 : 1;
 }
 
-function quadro_pedra(_i, _j)
+function pedra_sprite(_forma)
 {
-    return bloco_pedra(!pedra_visual(_i, _j - 1), !pedra_visual(_i, _j + 1), !pedra_visual(_i - 1, _j), !pedra_visual(_i + 1, _j),
-        !pedra_visual(_i - 1, _j - 1), !pedra_visual(_i + 1, _j - 1), !pedra_visual(_i - 1, _j + 1), !pedra_visual(_i + 1, _j + 1), _i, _j);
+    switch (_forma)
+    {
+        case 1: return spr_pedra_g;
+        case 2: return spr_pedra_a;
+        case 3: return spr_pedra_l;
+    }
+    return spr_pedra;
 }
 
 // Quadros do spr_cano: 0 vertical, 1 cima+direita, 2 cima+esquerda, 3 baixo+direita, 4 baixo+esquerda,

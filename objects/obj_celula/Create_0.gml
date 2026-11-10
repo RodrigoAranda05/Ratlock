@@ -4,6 +4,8 @@
 coluna = floor(x / TL);
 linha = floor(y / TL);
 simbolo = ".";
+larg = 1;     // quantos tiles ocupa (a pedra grande ocupa 2)
+alt = 1;
 depth = 50;
 image_speed = 0;
 

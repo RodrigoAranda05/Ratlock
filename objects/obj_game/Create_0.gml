@@ -64,9 +64,9 @@ instance_create_depth(0, 0, -10001, obj_criador);
 
 #region montar a fase
 
-// Pintar pedra no Room Editor: crie uma layer de tiles chamada tl_pedra com o tileset ts_pedra e pinte com QUALQUER tile.
-// Ao abrir a fase, cada tile pintado vira pedra na grade (colisão) e o jogo troca o desenho pelo bloco certo
-// (teto, chão, parede, canto ou ligação), olhando os vizinhos, inclusive as pedras que são objetos. O tile 0 do tileset é o vazio.
+// Pintar pedra no Room Editor: crie uma layer de tiles chamada tl_pedra com o tileset ts_pedra e pinte com os blocos.
+// Cada tile pintado vira pedra na grade (colisão). O desenho é o próprio tile (os blocos não se ligam), então um
+// bloco grande é pintado com o pincel de vários tiles (2x2, 1x2, 2x1). O tile 0 do tileset é o vazio.
 junta_tiles_pedra = function()
 {
     if (!layer_exists("tl_pedra")) return;
@@ -74,21 +74,13 @@ junta_tiles_pedra = function()
     if (_mapa == -1) return;
     var _cols = min(tilemap_get_width(_mapa), GW);
     var _lins = min(tilemap_get_height(_mapa), GH);
-    var _pintados = [];
     for (var j = 0; j < _lins; j++)
     {
         for (var i = 0; i < _cols; i++)
         {
             if (tile_get_index(tilemap_get(_mapa, i, j)) == 0) continue;
             if (global.grade[j][i] == ".") global.grade[j][i] = "S";
-            array_push(_pintados, [i, j]);
         }
-    }
-    for (var k = 0; k < array_length(_pintados); k++)
-    {
-        var c = _pintados[k][0];
-        var l = _pintados[k][1];
-        tilemap_set(_mapa, 1 + quadro_pedra(c, l), c, l);   // +1: o tile 0 é o vazio
     }
 }
 
@@ -110,12 +102,22 @@ monta_fase = function()
         array_push(global.grade, fileira_grade);
         array_push(global.mapa_vento, fileira_vento);
     }
+    with (obj_pedra) aplica_forma();
     with (obj_celula)
     {
-        if (coluna >= 0 && coluna < GW && linha >= 0 && linha < GH) global.grade[linha][coluna] = simbolo;
+        // a pedra grande ocupa vários tiles (larg x alt a partir do canto de cima-esquerda)
+        for (var dj = 0; dj < alt; dj++)
+        {
+            for (var di = 0; di < larg; di++)
+            {
+                var ci = coluna + di;
+                var cj = linha + dj;
+                if (ci >= 0 && ci < GW && cj >= 0 && cj < GH) global.grade[cj][ci] = simbolo;
+            }
+        }
     }
 
-    // pedras pintadas no Room Editor (layer de tiles "tl_pedra"): entram na grade e escolhem o bloco pelos vizinhos
+    // pedras pintadas no Room Editor (layer de tiles "tl_pedra"): entram na grade
     junta_tiles_pedra();
 
     // listas que os outros objetos consultam

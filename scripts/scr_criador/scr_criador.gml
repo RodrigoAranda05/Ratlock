@@ -24,7 +24,7 @@ function carrega_pecas()
         nova_peca("rato", "Rato (início)", obj_player, 1, true, 1),
         nova_peca("chave", "Chave", obj_chave, 1, true, 1),
         nova_peca("porta", "Porta (saída)", obj_porta, 1, true, 0.6),
-        nova_peca("pedra", "Pedra", obj_pedra, 1, false, 1),
+        nova_peca("pedra", "Pedra", obj_pedra, 4, false, 1),   // variante = formato: 0 16x16, 1 32x32, 2 16x32, 3 32x16
         nova_peca("pedra_falsa", "Parede falsa (removida)", obj_pedra, 1, false, 1, true),
         nova_peca("cano", "Cano (escalar)", obj_cano, 1, false, 1),
         nova_peca("espinho", "Espinho", obj_espinho, 1, false, 1),
@@ -89,6 +89,7 @@ function props_peca(_i, _v)
             var vt = variante_ventoinha(_v);
             return {direcao: vt[0], puxa: vt[1]};
         case "laser": return {direcao: _v, fase_pulso: -1};
+        case "pedra": return {forma: _v};
     }
     return {};
 }
@@ -105,6 +106,7 @@ function nome_variante(_i, _v)
             var vt = variante_ventoinha(_v);
             return (vt[1] ? "puxa " : "sopra ") + global.dir_nomes[vt[0]];
         case "laser": return "para " + global.dir_nomes[_v];
+        case "pedra": return ["16x16 (padrão)", "32x32", "16x32 (em pé)", "32x16 (deitado)"][_v];
     }
     return "";
 }
@@ -117,7 +119,7 @@ function sprite_peca(_i, _v)
         case "rato": return spr_ed_rato;
         case "chave": return spr_ed_chave;
         case "porta": return spr_ed_porta;
-        case "pedra": return spr_pedra;
+        case "pedra": return pedra_sprite(_v);
         case "cano": return spr_cano;
         case "plataforma": return spr_plataforma;
         case "espinho": return spr_espinho;
@@ -158,7 +160,7 @@ function quadro_peca(_i, _v)
         case "ventoinha": return floor(global.tempo_jogo * 12) % 4;
         case "botao": return (_v >= 4) ? 1 : 0;
         case "laser": return [0, 3, 1, 2][_v] * 4;
-        case "pedra": return 4;
+        case "pedra": return 0;
         case "plataforma": return 8;
     }
     return 0;
@@ -170,23 +172,72 @@ function desenha_peca(_i, _v, _x, _y, _esc, _alfa)
     draw_sprite_ext(sprite_peca(_i, _v), quadro_peca(_i, _v), _x, _y, _esc, _esc, 0, c_white, _alfa);
 }
 
+// A pedra grande guarda só a célula de cima-esquerda (a "âncora", com o formato na variante); as outras células que ela cobre ficam vazias (-1).
+// Devolve [coluna, linha] da pedra que cobre a célula (i, j) na grade _g, ou undefined.
+function pedra_que_cobre(_g, _i, _j)
+{
+    for (var dj = 0; dj <= 1; dj++)
+    {
+        for (var di = 0; di <= 1; di++)
+        {
+            var ai = _i - di;
+            var aj = _j - dj;
+            if (ai < 0 || aj < 0 || ai >= CRIADOR_COL || aj >= CRIADOR_LIN) continue;
+            var c = _g[aj][ai];
+            if (c < 0 || global.pecas[floor(c / 8)].k != "pedra") continue;
+            var f = c % 8;
+            if (di < pedra_larg(f) && dj < pedra_alt(f)) return [ai, aj];
+        }
+    }
+    return undefined;
+}
+
+// o formato de pedra cabe na grade a partir de (i, j)?
+function pedra_cabe(_i, _j, _forma)
+{
+    return _i >= 0 && _j >= 0 && _i + pedra_larg(_forma) <= CRIADOR_COL && _j + pedra_alt(_forma) <= CRIADOR_LIN;
+}
+
+// as pedras da grade cabem e não se sobrepõem a nada? (usado ao ler um código de compartilhar)
+function grade_pedras_ok(_g)
+{
+    for (var j = 0; j < CRIADOR_LIN; j++)
+    {
+        for (var i = 0; i < CRIADOR_COL; i++)
+        {
+            var c = _g[j][i];
+            if (c < 0 || global.pecas[floor(c / 8)].k != "pedra") continue;
+            var f = c % 8;
+            if (!pedra_cabe(i, j, f)) return false;
+            for (var dj = 0; dj < pedra_alt(f); dj++)
+            {
+                for (var di = 0; di < pedra_larg(f); di++)
+                {
+                    if ((di > 0 || dj > 0) && _g[j + dj][i + di] >= 0) return false;
+                    var o = pedra_que_cobre(_g, i + di, j + dj);
+                    if (o[0] != i || o[1] != j) return false;
+                }
+            }
+        }
+    }
+    return true;
+}
+
 // a célula do editor tem a peça _k? (para emendar canos e plataformas)
 function editor_tem(_i, _j, _k)
 {
     if (_i < 0 || _j < 0 || _i >= CRIADOR_COL || _j >= CRIADOR_LIN) return false;
+    if (_k == "pedra") return pedra_que_cobre(global.ed.grade, _i, _j) != undefined;
     var c = global.ed.grade[_j][_i];
     if (c < 0) return false;
     return global.pecas[floor(c / 8)].k == _k;
 }
 
-// o editor emenda o visual da pedra pelos vizinhos (fora da grade conta como pedra)
+// célula sólida de pedra (fora da grade conta como pedra)
 function editor_pedra(_i, _j)
 {
     if (_i < 0 || _j < 0 || _i >= CRIADOR_COL || _j >= CRIADOR_LIN) return true;
-    var c = global.ed.grade[_j][_i];
-    if (c < 0) return false;
-    var k = global.pecas[floor(c / 8)].k;
-    return k == "pedra";
+    return pedra_que_cobre(global.ed.grade, _i, _j) != undefined;
 }
 
 #endregion
@@ -365,6 +416,7 @@ function decodifica_fase(_texto)
         pos++;
     }
     if (p != fim + 1) return undefined;
+    if (!grade_pedras_ok(g)) return undefined;
     if (problemas_fase(g) != "") return undefined;
     return {nome: nome, grade: g, validada: true, slot: -1};
 }
