@@ -13,7 +13,7 @@ function carrega_fases()
         {n: "Circuitos", d: "Botões, caixas, cabos e água"},
         {n: "Vigilância", d: "Guardas, cão e câmeras"},
         {n: "Sopro", d: "Ventoinhas e a grande fuga"},
-        {n: "Cofre", d: "Lasers, pisos de cor e verticais"}
+        {n: "Cofre", d: "Lasers, blocos de cor e verticais"}
     ];
 
         global.fases = [
@@ -31,7 +31,7 @@ function carrega_fases()
         {mundo: 2, nome: "Cão Farejador", tempo_par: 25, objetivo3: "chave", tem_queijo: 1},
         {mundo: 2, nome: "Câmera", tempo_par: 30, objetivo3: "cabo", tem_queijo: 1},
         {mundo: 2, nome: "Lanterna", tempo_par: 30, objetivo3: "cabo", tem_queijo: 1},
-        {mundo: 2, nome: "Sentinela", tempo_par: 25, objetivo3: "cabo", tem_queijo: 1},
+        {mundo: 2, nome: "Ronda", tempo_par: 25, objetivo3: "cabo", tem_queijo: 1},
         {mundo: 2, nome: "Escudo", tempo_par: 25, objetivo3: "chave", tem_queijo: 1},
         {mundo: 2, nome: "Faro e Olhos", tempo_par: 25, objetivo3: "chave", tem_queijo: 1},
         {mundo: 3, nome: "Vento", tempo_par: 25, objetivo3: "chave", tem_queijo: 1},

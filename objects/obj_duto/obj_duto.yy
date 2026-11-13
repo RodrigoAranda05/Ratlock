@@ -2,8 +2,8 @@
   "$GMObject":"",
   "%Name":"obj_duto",
   "eventList":[
-    {"$GMEvent":"v1","%Name":"","collisionObjectId":null,"eventNum":0,"eventType":0,"isDnD":false,"name":"","resourceType":"GMEvent","resourceVersion":"2.0",},
-    {"$GMEvent":"v1","%Name":"","collisionObjectId":null,"eventNum":0,"eventType":8,"isDnD":false,"name":"","resourceType":"GMEvent","resourceVersion":"2.0",},
+    {"$GMEvent":"v1","%Name":"","collisionObjectId":null,"eventNum":0,"eventType":0,"isDnD":false,"name":"","resourceType":"GMEvent","resourceVersion":"2.0"},
+    {"$GMEvent":"v1","%Name":"","collisionObjectId":null,"eventNum":0,"eventType":8,"isDnD":false,"name":"","resourceType":"GMEvent","resourceVersion":"2.0"},
   ],
   "managed":true,
   "name":"obj_duto",
@@ -30,14 +30,14 @@
   "physicsShapePoints":[],
   "physicsStartAwake":true,
   "properties":[
-    {"$GMObjectProperty":"v2","%Name":"numero","filters":[],"listItems":[],"multiselect":false,"name":"numero","rangeEnabled":true,"rangeMax":4.0,"rangeMin":1.0,"resourceType":"GMObjectProperty","resourceVersion":"2.0","value":"1","varType":1,},
+    {"$GMObjectProperty":"v2","%Name":"numero","filters":[],"listItems":[],"multiselect":false,"name":"numero","rangeEnabled":true,"rangeMax":2.0,"rangeMin":1.0,"resourceType":"GMObjectProperty","resourceVersion":"2.0","value":"1","varType":1},
   ],
   "resourceType":"GMObject",
   "resourceVersion":"2.0",
   "solid":false,
   "spriteId":{
-    "name":"spr_duto_azul",
-    "path":"sprites/spr_duto_azul/spr_duto_azul.yy",
+    "name":"spr_duto",
+    "path":"sprites/spr_duto/spr_duto.yy",
   },
   "spriteMaskId":null,
   "visible":true,

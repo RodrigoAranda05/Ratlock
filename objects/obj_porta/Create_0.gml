@@ -7,7 +7,7 @@ depth = 20;
 atualiza = function()
 {
     var p = global.jogador;
-    if (retangulos_batem(p, {x: coluna * TL, y: (linha - 1) * TL, w: TL, h: 2 * TL}))
+    if (retangulos_batem(p, {x: coluna * TL + 5, y: (linha - 1) * TL + 6, w: TL - 10, h: 2 * TL - 6}))
     {
         if (global.tem_chave) fase_concluida();
     }

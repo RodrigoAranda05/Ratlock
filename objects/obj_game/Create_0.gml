@@ -138,7 +138,20 @@ monta_fase = function()
     }
     with (obj_cano) liga();                 // emenda os canos vizinhos
     with (obj_plataforma) liga();           // ponta, meio ou solta
+    // fios automáticos: de cada caixa de energia um fio sobe até o teto e outro desce até o chão (só desenho)
+    with (obj_cabo)
+    {
+        for (var j = linha - 1; j >= 0 && tile_em(coluna, j) == "."; j--) instance_create_layer(coluna * TL, j * TL, "Instances", obj_fio);
+        for (var j = linha + 1; j < GH && tile_em(coluna, j) == "."; j++) instance_create_layer(coluna * TL, j * TL, "Instances", obj_fio);
+    }
     with (obj_ventoinha) prepara();         // marca a zona de vento
+    // fase que começa sem energia: todos os cabos estão desligados
+    if (array_length(global.cabos) > 0)
+    {
+        var _todos_off = true;
+        for (var q = 0; q < array_length(global.cabos); q++) if (!global.cabos[q].roido) _todos_off = false;
+        if (_todos_off) global.luz_ligada = false;
+    }
     // botão marcado como "comeca_ativo": só o primeiro (na ordem de criação) vale
     with (obj_botao)
     {
@@ -196,25 +209,19 @@ troca_cor_pendente = function()
     if (global.cor_pendente < 0 || global.cor_pendente == global.cor_ativa) return;
     var p = global.jogador;
     var ocupado = false;
-    if (global.cor_ativa >= 0)
-    {
-        if (tile_sobreposto(p, ocupa_portao_ativo) != undefined) ocupado = true;
-        for (var k = 0; k < array_length(global.caixas); k++)
-        {
-            if (tile_sobreposto(global.caixas[k], ocupa_portao_ativo) != undefined) ocupado = true;
-        }
-    }
-    if (tile_sobreposto(p, ocupa_piso_novo) != undefined) ocupado = true;
+    if (tile_sobreposto(p, ocupa_portao_pendente) != undefined) ocupado = true;
     for (var k = 0; k < array_length(global.caixas); k++)
     {
-        if (tile_sobreposto(global.caixas[k], ocupa_piso_novo) != undefined) ocupado = true;
+        if (tile_sobreposto(global.caixas[k], ocupa_portao_pendente) != undefined) ocupado = true;
     }
     if (!ocupado)
     {
         global.cor_ativa = global.cor_pendente;
         faiscas(p.x + p.w / 2, p.y + p.h - 3, 10);
+        toca_som("snd_botao");
+        toca_som("snd_cor", 0.5);
         var nomes = ["vermelhas", "azuis", "verdes", "amarelas"];
-        mostra_aviso("Portas " + nomes[global.cor_ativa] + " abertas", 2);
+        mostra_aviso("Blocos " + nomes[global.cor_ativa] + " ativos", 2);
     }
 }
 

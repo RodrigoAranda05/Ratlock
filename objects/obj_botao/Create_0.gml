@@ -22,6 +22,8 @@ atualiza = function()
     {
         if (retangulos_batem(global.caixas[k], area)) com_caixa = true;
     }
+    // a chave solta no chão também pesa, igual a uma caixa
+    if (instance_exists(global.chave) && global.chave.estado == "free" && retangulos_batem(global.chave, area)) com_caixa = true;
     pisado = com_caixa || retangulos_batem(p, area);
     if (!pisado || cor == global.cor_ativa) return;
 

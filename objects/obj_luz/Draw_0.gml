@@ -8,6 +8,5 @@ if (global.luz_ligada)
 for (var q = 0; q < array_length(global.inimigos); q++)
 {
     var e = global.inimigos[q];
-    if (e.tipo == "N") desenha_brilho(e.x + 6, e.y + 14, 58, global.luz_ligada ? 0.18 : 0.5);
 }
 gpu_set_blendmode(bm_normal);

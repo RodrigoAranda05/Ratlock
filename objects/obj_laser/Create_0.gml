@@ -3,7 +3,7 @@ event_inherited();
 // Cada laser pode apontar para um lado diferente.
 simbolo = ["i", "z", "I", "x"][direcao];
 vetor = dir_laser(simbolo);                     // [dx, dy] do feixe
-quadro_base = [0, 3, 1, 2][direcao];            // grupo de quadros do sprite para esta direção
+quadro_emissor = [0, 2, 1, 3][direcao];         // quadro do emissor aceso (direita, esquerda, cima, baixo); +4 = apagado
 // VARIÁVEL DA ROOM: "fase_pulso" (0..9) = em que momento do ciclo o laser pulsa. -1 = automático pela posição.
 defasagem = ((fase_pulso >= 0) ? fase_pulso : ((coluna * 7 + linha * 3) % 10)) * 0.32;
 ligado = false;                                 // feixe ligado
@@ -14,8 +14,9 @@ feixe = {x: 0, y: 0, w: 0, h: 0};               // retângulo do feixe
 // comprimento do feixe até bater em algo sólido ou numa caixa
 mede_feixe = function()
 {
-    var xx = coluna * TL + 8 + vetor[0] * 8;
-    var yy = linha * TL + 8 + vetor[1] * 8;
+    // começa 1 px dentro do tile vizinho (para esquerda/cima, o próprio emissor ocupava o ponto de partida e o feixe media 0)
+    var xx = coluna * TL + 8 + vetor[0] * 9;
+    var yy = linha * TL + 8 + vetor[1] * 9;
     var n = 0;
     while (n < 160)
     {

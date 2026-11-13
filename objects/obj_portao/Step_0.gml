@@ -1,1 +1,1 @@
-image_index = (global.cor_ativa == cor) ? 1 : 0;
+image_index = (global.cor_ativa == cor) ? 0 : 1;

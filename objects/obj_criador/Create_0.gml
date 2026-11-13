@@ -20,20 +20,29 @@ confirma = "";              // ação que espera a segunda tecla ("apagar", "lim
 confirma_tempo = 0;
 lista_cursor = 0;
 lista_rolagem = 0;
+// animações do editor (valores de 0 a 1 que vão atrás do alvo)
+anim_slot = array_create(40, 0);        // mouse em cima do slot da paleta
+anim_ativo = array_create(40, 0);       // slot da peça escolhida (fica levantado)
+pulso_slot = array_create(40, 0);       // aperto ao clicar (de 1 a 0)
+anim_botao = array_create(8, 0);
+pulso_botao = array_create(8, 0);
+plops = [];                             // "puf" quando uma peça é posta ou apagada numa célula
 mx = 0;                     // mouse no layout 480x272
 my = 0;
 
 // layout (unidades do layout 480x272)
 // (o desenho fixo dessas áreas está no spr_fundo_criador, que é o fundo da rm_criador: dá para ver na room)
-grade_x = 4;
-grade_y = 22;
-paleta_x = 332;
-paleta_y = 22;
+grade_x = 80;
+grade_y = 75;
+paleta_x = 11;      // a paleta fica em cima, em 2 fileiras de 15 casas
+paleta_y = 19;
 botoes = [
-    {texto: "TESTAR  (T)", acao: "testar"},
-    {texto: "SALVAR  (S)", acao: "salvar"},
-    {texto: "NOME  (N)", acao: "nome"},
-    {texto: "COPIAR CÓDIGO  (C)", acao: "copiar"}
+    {texto: "TESTAR (T)", acao: "testar"},
+    {texto: "SALVAR (S)", acao: "salvar"},
+    {texto: "COPIAR (C)", acao: "copiar"},
+    {texto: "NOME (N)", acao: "nome"},
+    {texto: "LIMPAR (X)", acao: "limpar"},
+    {texto: "VOLTAR (Esc)", acao: "voltar"}
 ];
 
 #endregion
@@ -65,14 +74,14 @@ novo_rascunho = function()
 }
 
 // slot da paleta: 0 = borracha, 1.. = peças
-slot_x = function(_s) { return paleta_x + (_s % 6) * 24; }
-slot_y = function(_s) { return paleta_y + floor(_s / 6) * 22; }
+slot_x = function(_s) { return paleta_x + (_s % 15) * 31; }
+slot_y = function(_s) { return paleta_y + floor(_s / 15) * 27; }
 
 slot_sob_mouse = function()
 {
     for (var s = 0; s <= array_length(global.pecas_vis); s++)
     {
-        if (mx >= slot_x(s) && mx < slot_x(s) + 20 && my >= slot_y(s) && my < slot_y(s) + 20) return s;
+        if (mx >= slot_x(s) && mx < slot_x(s) + 24 && my >= slot_y(s) && my < slot_y(s) + 24) return s;
     }
     return -2;
 }
@@ -85,13 +94,15 @@ celula_sob_mouse = function()
     return [i, j];
 }
 
-botao_y = function(_n) { return 140 + _n * 17; }
+// botões nas duas laterais da grade: 3 à esquerda e 3 à direita
+botao_x = function(_n) { return (_n < 3) ? 4 : 406; }
+botao_y = function(_n) { return grade_y + 6 + (_n % 3) * 32; }
 
 botao_sob_mouse = function()
 {
     for (var n = 0; n < array_length(botoes); n++)
     {
-        if (mx >= paleta_x && mx < paleta_x + 144 && my >= botao_y(n) && my < botao_y(n) + 14) return n;
+        if (mx >= botao_x(n) && mx < botao_x(n) + 70 && my >= botao_y(n) && my < botao_y(n) + 24) return n;
     }
     return -1;
 }
@@ -132,6 +143,19 @@ aplica_celula = function(_i, _j, _apaga)
             }
         }
     }
+    if (novo >= 0 && global.pecas[sel].k == "duto")
+    {
+        // só um par de dutos: cada número (1 e 2) existe uma vez e o anterior sai do lugar
+        for (var j = 0; j < CRIADOR_LIN; j++)
+        {
+            for (var i = 0; i < CRIADOR_COL; i++)
+            {
+                if (ed.grade[j][i] == novo) ed.grade[j][i] = -1;
+            }
+        }
+    }
+    array_push(plops, {i: _i, j: _j, t: 0, c: (novo < 0) ? 0xff6b5e : 0xffd84a});
+    if (novo >= 0) toca_som("snd_botao", 0.35, 1.4);
     ed.grade[_j][_i] = novo;
     ed.validada = false;
 }
@@ -191,6 +215,8 @@ executa_acao = function(_a)
     else if (_a == "salvar") salvar();
     else if (_a == "nome") { nomeando = true; salva_depois_do_nome = false; keyboard_string = global.ed.nome; }
     else if (_a == "copiar") copiar_codigo(global.ed);
+    else if (_a == "limpar") limpar();
+    else if (_a == "voltar") global.estado = "lista_custom";
 }
 
 #endregion
@@ -242,36 +268,36 @@ apaga_fase = function(_i)
 
 desenha_lista = function()
 {
-    desenha_rect(0, 0, VW, VH, 0x070b11);        // cobre o desenho do editor, que é o fundo desta room
-    desenha_texto("CRIAR FASES", VW / 2, 20, 0xffd84a, "center", 18);
-    desenha_texto("Monte uma fase, passe dela para provar que dá para vencer e compartilhe o código", VW / 2, 38, 0xa9b4c4, "center", 9);
+    desenha_fundo_tela(1);                       // cobre o desenho do editor, que é o fundo desta room
+    desenha_fundo_diag(60, 100, 0xa8c0ff);
+    desenha_titulo_faixa("CRIAR FASES", "Monte, teste e compartilhe com um código");
     var it = monta_itens();
-    var visiveis = 9;
-    var y0 = 54;
+    var visiveis = 8;
+    var y0 = 60;
     for (var n = 0; n < array_length(it); n++)
     {
         if (n < lista_rolagem || n >= lista_rolagem + visiveis) continue;
-        var yy = y0 + (n - lista_rolagem) * 19;
+        var yy = y0 + (n - lista_rolagem) * 22;
         var a = it[n];
-        desenha_rect(60, yy, 360, 17, 0x1b2433);
-        if (n == lista_cursor) desenha_moldura(60, yy, 360, 17);
-        var cor = (n == lista_cursor) ? 0xf3efe6 : 0xa9b4c4;
-        if (a.t == "novo") desenha_texto("+ NOVA FASE", 72, yy + 9, 0x4ade80, "left", 12);
-        else if (a.t == "rasc") desenha_texto("> CONTINUAR O RASCUNHO" + ((global.ed.nome != "") ? "  (" + global.ed.nome + ")" : ""), 72, yy + 9, 0xffd84a, "left", 12);
-        else if (a.t == "imp") desenha_texto("COLAR CÓDIGO DE UMA FASE  (Ctrl+V)", 72, yy + 9, 0x7cc4ff, "left", 12);
+        var sel = (n == lista_cursor);
+        desenha_cartao(70, yy, 360, 19, sel, false);
+        var cor = sel ? 0xffffff : 0xc4cee0;
+        if (a.t == "novo") desenha_texto("+ NOVA FASE", 92, yy + 10, 0x4ade80, "left", 11);
+        else if (a.t == "rasc") desenha_texto("CONTINUAR O RASCUNHO" + ((global.ed.nome != "") ? "  (" + global.ed.nome + ")" : ""), 92, yy + 10, 0xffd84a, "left", 11);
+        else if (a.t == "imp") desenha_texto("COLAR CÓDIGO DE UMA FASE  (Ctrl+V)", 92, yy + 10, 0x7cc4ff, "left", 11);
         else
         {
             var f = global.custom_salvas[a.i];
-            desenha_texto(string(a.i + 1) + ".  " + ((f.nome == "") ? "SEM NOME" : f.nome), 72, yy + 9, cor, "left", 12);
-            desenha_texto("validada", 408, yy + 9, 0x4ade80, "right", 9);
+            desenha_texto(string(a.i + 1) + ".  " + ((f.nome == "") ? "SEM NOME" : f.nome), 92, yy + 10, cor, "left", 11);
+            desenha_texto("validada", 414, yy + 10, 0x4ade80, "right", 8);
         }
     }
-    if (lista_rolagem > 0) desenha_seta_rolagem_c(VW / 2, 46, -1);
-    if (lista_rolagem + visiveis < array_length(it)) desenha_seta_rolagem_c(VW / 2, y0 + visiveis * 19 + 1, 1);
-    if (msg_tempo > 0) desenha_texto(msg, VW / 2, 238, 0xffe9a0, "center", 11);
+    if (lista_rolagem > 0) desenha_seta_rolagem_c(VW / 2 + 20, 52, -1);
+    if (lista_rolagem + visiveis < array_length(it)) desenha_seta_rolagem_c(VW / 2 + 20, y0 + visiveis * 22, 1);
+    if (msg_tempo > 0) desenha_texto(msg, VW / 2, 242, 0xffe9a0, "center", 11);
     var sel_item = (lista_cursor < array_length(it)) ? it[lista_cursor] : undefined;
-    if (sel_item != undefined && sel_item.t == "fase") desenha_texto("Enter: jogar  ·  E: editar  ·  C: copiar código  ·  Del: apagar  ·  Esc: voltar", VW / 2, 258, 0x7d8798, "center", 9);
-    else desenha_texto("Enter: escolher  ·  Ctrl+V: colar código  ·  Esc: voltar", VW / 2, 258, 0x7d8798, "center", 9);
+    if (sel_item != undefined && sel_item.t == "fase") desenha_dicas(262, [["Enter", "jogar"], ["E", "editar"], ["C", "copiar código"], ["Del", "apagar"], ["Esc", "voltar"]]);
+    else desenha_dicas(262, [["Enter", "escolher"], ["Ctrl+V", "colar código"], ["Esc", "voltar"]]);
 }
 
 desenha_seta_rolagem_c = function(_x, _y, _dir)
@@ -327,53 +353,126 @@ desenha_editor = function()
             }
             else if (k == "plataforma")
             {
-                var qp = quadro_plataforma(editor_tem(i - 1, j, "plataforma"), editor_tem(i + 1, j, "plataforma"), editor_tem(i - 1, j, "pedra"), editor_tem(i + 1, j, "pedra"));
-                draw_sprite(spr_plataforma, qp, grade_x + i * TL, grade_y + j * TL);
+                var pe = editor_tem(i - 1, j, "plataforma"), pd = editor_tem(i + 1, j, "plataforma");
+                var we = editor_tem(i - 1, j, "pedra"), wd = editor_tem(i + 1, j, "pedra");
+                var esp = plataforma_espelha(pe, pd, we, wd);
+                draw_sprite_ext(spr_plataforma, quadro_plataforma(pe, pd, we, wd), grade_x + i * TL + (esp ? TL : 0), grade_y + j * TL, esp ? -1 : 1, 1, 0, c_white, 1);
+            }
+            else if (k == "cabo")
+            {
+                // os fios aparecem sozinhos: sobem até o teto e descem até o chão
+                for (var jj = j - 1; jj >= 0 && ed.grade[jj][i] < 0; jj--) draw_sprite(spr_fio, 0, grade_x + i * TL, grade_y + jj * TL);
+                for (var jj = j + 1; jj < CRIADOR_LIN && ed.grade[jj][i] < 0; jj++) draw_sprite(spr_fio, 0, grade_x + i * TL, grade_y + jj * TL);
+                draw_sprite(spr_cabo, 2 + ((c % 8 == 1) ? 7 : 0), grade_x + i * TL, grade_y + j * TL);
             }
             else desenha_peca(floor(c / 8), c % 8, grade_x + i * TL, grade_y + j * TL, 1, 1);
         }
     }
-
-    // célula sob o mouse: prévia da peça
+    var t = global.tempo_jogo;
+    // célula sob o mouse: peça fantasma flutuando e cantoneiras que pulsam
     var cel = celula_sob_mouse();
     if (cel != undefined && !nomeando)
     {
         var cx = grade_x + cel[0] * TL;
         var cy = grade_y + cel[1] * TL;
-        if (sel >= 0) desenha_peca(sel, var_sel, cx, cy, 1, 0.55);
-        desenha_rect_alfa(cx, cy, TL, TL, (sel < 0) ? 0xff4030 : 0xffd84a, 0.22);
+        var cor_m = (sel < 0) ? 0xff6b5e : 0xffd84a;
+        desenha_rect_alfa(cx, cy, TL, TL, cor_m, 0.16 + 0.08 * sin(t * 8));
+        if (sel >= 0) desenha_peca(sel, var_sel, cx, cy + round(sin(t * 5)), 1, 0.6);
+        var press = mouse_check_button(mb_left) || mouse_check_button(mb_right);
+        var of = press ? -1 : round(0.5 + 0.5 * sin(t * 8));
+        var cl = 4;
+        for (var q = 0; q < 4; q++)
+        {
+            var qx = (q % 2 == 0) ? cx - of : cx + TL + of - 1;
+            var qy = (q < 2) ? cy - of : cy + TL + of - 1;
+            var dx = (q % 2 == 0) ? 1 : -1, dy = (q < 2) ? 1 : -1;
+            desenha_rect(qx, qy, 1, cl * dy, 0xffffff);
+            desenha_rect(qx, qy, cl * dx, 1, 0xffffff);
+            if (dx < 0) desenha_rect(qx - cl + 1, qy, cl, 1, 0xffffff);
+            if (dy < 0) desenha_rect(qx, qy - cl + 1, 1, cl, 0xffffff);
+        }
     }
-
-    // paleta
-    var sob = slot_sob_mouse();
-    for (var s = 0; s <= array_length(global.pecas_vis); s++)
+    // "puf" das peças postas
+    var novos = [];
+    for (var q = 0; q < array_length(plops); q++)
     {
-        var px = slot_x(s), py = slot_y(s);
+        var pp = plops[q];
+        pp.t += DT * 3.2;
+        if (pp.t >= 1) continue;
+        array_push(novos, pp);
+        var tam = TL + pp.t * 14;
+        var px0 = grade_x + pp.i * TL + TL / 2 - tam / 2, py0 = grade_y + pp.j * TL + TL / 2 - tam / 2;
+        var al = 1 - pp.t;
+        desenha_rect_alfa(px0, py0, tam, 1, pp.c, al); desenha_rect_alfa(px0, py0 + tam - 1, tam, 1, pp.c, al);
+        desenha_rect_alfa(px0, py0, 1, tam, pp.c, al); desenha_rect_alfa(px0 + tam - 1, py0, 1, tam, pp.c, al);
+    }
+    plops = novos;
+
+    // paleta: o slot sob o mouse sobe um pouco, o da peça escolhida fica levantado e brilha, o clicado "aperta"
+    var sob = slot_sob_mouse();
+    var ordem = [];
+    for (var s = 0; s <= array_length(global.pecas_vis); s++) { if (((s == 0) ? -1 : global.pecas_vis[s - 1]) != sel) array_push(ordem, s); }
+    for (var s = 0; s <= array_length(global.pecas_vis); s++) { if (((s == 0) ? -1 : global.pecas_vis[s - 1]) == sel) array_push(ordem, s); }
+    for (var o = 0; o < array_length(ordem); o++)
+    {
+        var s = ordem[o];
         var ps = (s == 0) ? -1 : global.pecas_vis[s - 1];
-        if (s == sob) desenha_rect(px, py, 20, 20, 0x2a3750);
-        if (s == 0) desenha_texto("X", px + 10, py + 11, 0xff6b5e, "center", 14);
+        anim_slot[s] = lerp(anim_slot[s], (s == sob) ? 1 : 0, 0.3);
+        anim_ativo[s] = lerp(anim_ativo[s], (ps == sel) ? 1 : 0, 0.25);
+        pulso_slot[s] = max(0, pulso_slot[s] - DT * 7);
+        var px = slot_x(s), py = slot_y(s);
+        var lift = round(anim_slot[s] * 2 + anim_ativo[s] * 3 - pulso_slot[s] * 3);
+        var fundo = merge_color(0x1b2433, 0x2f4268, max(anim_slot[s] * 0.7, anim_ativo[s]));
+        if (lift > 0) desenha_rect_alfa(px + 1, py + 4, 24, 22, 0x000000, 0.4);
+        desenha_rect(px, py - lift, 24, 24, 0x0a0e15);
+        desenha_rect(px + 1, py - lift + 1, 22, 22, fundo);
+        desenha_rect(px + 1, py - lift + 1, 22, 1, merge_color(fundo, 0xffffff, 0.2));
+        desenha_rect(px + 1, py - lift + 22, 22, 1, merge_color(fundo, 0x000000, 0.35));
+        if (s == 0) desenha_texto("X", px + 12, py - lift + 13, 0xff6b5e, "center", 14);
         else
         {
             var e = global.pecas[ps].esc;
-            desenha_peca(ps, (ps == sel) ? var_sel : 0, px + 10 - 8 * e, py + 20 - 16 * e, e, 1);
+            desenha_peca(ps, (ps == sel) ? var_sel : 0, px + 12 - 8 * e, py - lift + 22 - 16 * e, e, 1);
         }
-        if (ps == sel) desenha_moldura(px, py, 20, 20);
+        if (ps == sel)
+        {
+            var br = (floor(t * 4) % 2 == 0) ? 0xffd84a : 0xffe9a0;
+            desenha_rect(px - 1, py - lift - 1, 26, 1, br); desenha_rect(px - 1, py - lift + 24, 26, 1, br);
+            desenha_rect(px - 1, py - lift - 1, 1, 26, br); desenha_rect(px + 24, py - lift - 1, 1, 26, br);
+            desenha_rect_alfa(px - 3, py - lift - 3, 30, 30, 0xffd84a, 0.10 + 0.06 * sin(t * 5));
+        }
+    }
+    // dica com o nome da peça sob o mouse
+    if (sob >= 0 && !nomeando)
+    {
+        var nome_s = (sob == 0) ? "Borracha" : global.pecas[global.pecas_vis[sob - 1]].nome;
+        var lw = largura_texto(nome_s, 9) + 10;
+        var tx = clamp(mx + 8, 2, VW - lw - 2), ty = my + 12;
+        desenha_rect(tx - 1, ty - 1, lw + 2, 15, 0x05080e);
+        desenha_rect(tx, ty, lw, 13, 0x1d2940);
+        desenha_texto(nome_s, tx + 5, ty + 7, 0xf3efe6, "left", 9);
     }
 
-    // botões
+    // botões: o sob o mouse desliza uma barra de destaque; o clicado pisca
     var bsob = botao_sob_mouse();
     for (var n = 0; n < array_length(botoes); n++)
     {
-        var by = botao_y(n);
-        if (n == bsob) desenha_rect(paleta_x, by, 144, 14, 0x2a3750);
+        var by = botao_y(n), bx = botao_x(n);
+        anim_botao[n] = lerp(anim_botao[n], (n == bsob) ? 1 : 0, 0.3);
+        pulso_botao[n] = max(0, pulso_botao[n] - DT * 6);
+        var bh = anim_botao[n];
+        desenha_rect_alfa(bx + 1, by + 3, 70, 22, 0x000000, 0.35 * bh);
+        desenha_rect(bx, by - round(bh * 2), 70, 24, 0x0a0e15);
+        desenha_rect(bx + 1, by - round(bh * 2) + 1, 68, 22, merge_color(0x1b2433, 0x2f4268, bh));
+        desenha_rect(bx + 1, by - round(bh * 2) + 1, 68, 1, merge_color(0x1b2433, 0xffffff, 0.2));
+        desenha_rect(bx + 1, by - round(bh * 2) + 1, round(bh * 3) + 1, 22, 0xffd84a);
+        if (pulso_botao[n] > 0) desenha_rect_alfa(bx, by - round(bh * 2), 70, 24, 0xffffff, pulso_botao[n] * 0.5);
         var bcor = 0xf3efe6;
         if (botoes[n].acao == "salvar" || botoes[n].acao == "copiar") bcor = ed.validada ? 0x4ade80 : 0x5b6578;
-        desenha_texto(botoes[n].texto, paleta_x + 72, by + 8, bcor, "center", 9);
+        desenha_texto(botoes[n].texto, bx + 35 + round(bh * 2), by - round(bh * 2) + 13, bcor, "center", 9);
     }
 
-    desenha_texto("Clique: pôr  ·  Botão direito: apagar  ·  Roda ou Q/E: trocar peça  ·  R: cor/direção", 6, 214, 0x7d8798, "left", 9);
-    desenha_texto("T: testar  ·  S: salvar  ·  C: copiar código  ·  N: nome  ·  X: limpar  ·  Esc: voltar", 6, 228, 0x7d8798, "left", 9);
-    desenha_texto("Para salvar ou compartilhar, passe da fase no teste (sem cheats).", 6, 244, 0x5b6578, "left", 9);
+    desenha_texto("Clique: pôr  ·  Botão direito: apagar  ·  Roda ou Q/E: trocar peça  ·  R: cor/direção  ·  Esc: voltar", VW / 2, 262, 0x7d8798, "center", 8);
 
     // digitando o nome
     if (nomeando)

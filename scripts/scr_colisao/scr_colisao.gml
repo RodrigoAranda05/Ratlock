@@ -2,7 +2,7 @@
 // global.grade[linha][coluna] guarda um caractere por tile (montado no Room Start a partir das células):
 //   =  plataforma de mão única      #  cano/vinha (segundo plano, escala)        S  pedra            ^  espinho       m  poça
 //   v  ventilação                    1-4  dutos
-//   q Q j J  portões (4 cores)       a A e E  pisos de cor
+//   q Q j J  portões (4 cores)     
 //   U u n R r Y y  ventoinhas        i I x z  lasers
 // As funções abaixo recebem uma "caixa" com x, y, w, h (o rato, um inimigo, uma caixa...).
 
@@ -156,17 +156,24 @@ function quadro_cano(_cima, _baixo, _esq, _dir, _pedra_e = false, _pedra_d = fal
 // 4 ponta direita presa na parede, 7 solta presa na parede da esquerda.
 function quadro_plataforma(_pe, _pd, _parede_e, _parede_d)
 {
-    if (!_pe && !_pd) return _parede_e ? 7 : 8;
+    if (!_pe && !_pd) return (_parede_e || _parede_d) ? 7 : 8;      // solta junto de uma parede: o 7, espelhado quando a parede é a da direita
     if (!_pe) return _parede_e ? 3 : 5;
     if (!_pd) return _parede_d ? 4 : 6;
     return 2;
 }
 
-// onde (em x, dentro do tile) cada quadro do spr_plataforma é sólido: as pontas só têm barra de um lado
-function span_plataforma(_q)
+// a plataforma solta, com parede só do lado direito, usa o quadro 7 espelhado
+function plataforma_espelha(_pe, _pd, _parede_e, _parede_d)
 {
-    var sp = [[1, 15], [0, 16], [0, 16], [0, 16], [0, 16], [8, 16], [0, 7], [0, 14], [1, 15]];
-    return sp[_q];
+    return !_pe && !_pd && _parede_d && !_parede_e;
+}
+
+// onde (em x, dentro do tile) cada quadro do spr_plataforma é sólido: as pontas só têm barra de um lado
+function span_plataforma(_q, _espelhado = false)
+{
+    var sp = [[1, 15], [0, 16], [0, 16], [0, 16], [0, 16], [8, 16], [0, 7], [0, 14], [1, 15]][_q];
+    if (_espelhado) return [TL - sp[1], TL - sp[0]];
+    return sp;
 }
 
 // o tile (_i,_j) é plataforma e o corpo (_x0.._x1) está sobre a parte que tem barra?
@@ -236,34 +243,47 @@ function cor_do_portao(_c)
     return -1;
 }
 
-function cor_do_piso(_c)
-{
-    switch (_c)
-    {
-        case "a": return 0;
-        case "A": return 1;
-        case "e": return 2;
-        case "E": return 3;
-    }
-    return -1;
-}
-
 function solido_rato(_i, _j)
 {
     var c = tile_em(_i, _j);
     if (c == "S") return true;       // o cano (#) é segundo plano: não bate em ninguém
     var g = cor_do_portao(c);
-    if (g >= 0 && global.cor_ativa != g) return true;       // portão fechado
+    if (g >= 0 && global.cor_ativa == g) return true;       // bloco aparece quando o botão da cor está ativo
     if (dir_ventoinha(c) != undefined) return true;          // ventoinha
     if (dir_laser(c) != undefined) return true;        // emissor de laser
-    var f = cor_do_piso(c);
-    if (f >= 0 && global.cor_ativa == f) return true;        // piso de cor ativo
+    return false;
+}
+
+// retângulo que mata de cada espinho (^ chão, V teto, < aponta p/ esquerda, > aponta p/ direita)
+function caixa_espinho(_c, _i, _j)
+{
+    switch (_c)
+    {
+        case "^": return {x: _i * TL + 2, y: _j * TL + 7, w: 12, h: 9};
+        case "V": return {x: _i * TL + 2, y: _j * TL, w: 12, h: 9};
+        case "<": return {x: _i * TL + 7, y: _j * TL + 2, w: 9, h: 12};   // base na parede da direita, pontas para a esquerda
+        case ">": return {x: _i * TL, y: _j * TL + 2, w: 9, h: 12};
+    }
+    return undefined;
+}
+
+// o objeto _o (rato, chave) encostou em algum espinho?
+function espinho_toca(_o)
+{
+    for (var j = floor(_o.y / TL); j <= floor((_o.y + _o.h) / TL); j++)
+    {
+        for (var i = floor(_o.x / TL); i <= floor((_o.x + _o.w) / TL); i++)
+        {
+            var c = tile_em(i, j);
+            if (string_pos(c, "^V<>") > 0 && retangulos_batem(_o, caixa_espinho(c, i, j))) return true;
+        }
+    }
     return false;
 }
 
 function solido_inimigo(_i, _j)
 {
-    return solido_rato(_i, _j) || string_pos(tile_em(_i, _j), "v") > 0;
+    return solido_rato(_i, _j);
 }
 
 function ocupa_portao_ativo(_i, _j)
@@ -271,9 +291,10 @@ function ocupa_portao_ativo(_i, _j)
     return cor_do_portao(tile_em(_i, _j)) == global.cor_ativa;
 }
 
-function ocupa_piso_novo(_i, _j)
+// blocos da cor que está para ficar ativa (ninguém pode estar dentro deles)
+function ocupa_portao_pendente(_i, _j)
 {
-    return cor_do_piso(tile_em(_i, _j)) == global.cor_pendente;
+    return cor_do_portao(tile_em(_i, _j)) == global.cor_pendente;
 }
 
 function tile_sobreposto(_o, _s)

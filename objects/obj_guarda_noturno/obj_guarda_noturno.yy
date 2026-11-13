@@ -32,10 +32,7 @@
   "resourceType":"GMObject",
   "resourceVersion":"2.0",
   "solid":false,
-  "spriteId":{
-    "name":"spr_ed_guarda_n",
-    "path":"sprites/spr_ed_guarda_n/spr_ed_guarda_n.yy",
-  },
+  "spriteId":null,
   "spriteMaskId":null,
   "visible":true,
 }

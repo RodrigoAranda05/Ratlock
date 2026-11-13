@@ -3,7 +3,7 @@ global.tempo_jogo += DT;
 global.piscada = max(0, global.piscada - DT);
 global.aviso_tempo -= DT;
 
-if (global.estado == "play" && instance_exists(global.jogador))
+if (global.estado == "play" && !global.pausa && instance_exists(global.jogador) && !transicao_saindo())
 {
     passo_fase();
     if (!global.cheat) global.stats.tempo += DT;

@@ -1,8 +1,7 @@
 event_inherited();
-// VARIÁVEL DA ROOM: "numero" (1..4). Os dutos andam em pares: 1 <-> 2 (azuis) e 3 <-> 4 (laranjas).
-// Entrando em um, o rato sai no outro.
+// VARIÁVEL DA ROOM: "numero" (1 ou 2). Só existe um par de dutos por fase: entrando em um, o rato sai no outro.
 simbolo = string(numero);
-sprite_index = (numero <= 2) ? spr_duto_azul : spr_duto_laranja;
+sprite_index = spr_duto;
 destino = noone;        // duto de saída (ligado em prepara)
 x += 8;                 // o duto vira um ponto no centro do tile
 y += 8;

@@ -3,6 +3,7 @@
 // aqui montamos a grade de colisão e as listas a partir delas.
 
 ajusta_tela();
+if (global.trans.fase == "espera") { global.trans.fase = "entra"; global.trans.t = 1; }      // room nova aberta (menu, criador ou fase): clareia
 
 // fase do criador: cria as instâncias a partir da grade antes de montar o resto
 var _custom_info = undefined;

@@ -31,8 +31,8 @@
   "resourceVersion":"2.0",
   "solid":false,
   "spriteId":{
-    "name":"spr_chave",
-    "path":"sprites/spr_chave/spr_chave.yy",
+    "name":"spr_ed_chave",
+    "path":"sprites/spr_ed_chave/spr_ed_chave.yy",
   },
   "spriteMaskId":null,
   "visible":true,

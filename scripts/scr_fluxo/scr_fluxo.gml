@@ -1,5 +1,44 @@
 // ===== fluxo do jogo: começar fase, passar de fase, fim =====
 
+// troca de room com transição (o estado do jogo só muda quando a room troca): escurece, troca (o obj_game clareia ao abrir a nova room). _sala = -1 reinicia a room atual.
+function vai_para(_sala, _estado = undefined)
+{
+    if (global.trans.fase != "off" && global.trans.fase != "entra") return;
+    global.trans.fase = "sai";
+    global.trans.t = 0;
+    global.trans.destino = _sala;
+    global.trans.estado = _estado;        // a tela só muda de estado quando a room trocar (senão o editor/menu pisca vazio)
+}
+
+// transição em persianas: faixas verticais pretas descem e sobem alternadas, em onda da esquerda para a direita.
+// Desenhada por último, por cima de tudo (inclusive os ícones do editor).
+function desenha_transicao()
+{
+    if (global.trans.fase == "off") return;
+    var p = clamp(global.trans.t, 0, 1);
+    var n = 16;
+    var larg = JANELA_W / n;
+    var atraso = 0.55;
+    draw_set_colour(c_black);
+    draw_set_alpha(1);
+    for (var i = 0; i < n; i++)
+    {
+        var local = clamp((p * (1 + atraso) - (i / (n - 1)) * atraso), 0, 1);
+        var e = local * local * (3 - 2 * local);
+        if (e <= 0) continue;
+        var h = JANELA_H * e;
+        var y0 = (i % 2 == 0) ? 0 : JANELA_H - h;
+        draw_rectangle(floor(i * larg) - 1, y0 - 1, ceil((i + 1) * larg) + 1, y0 + h + 1, false);
+    }
+    draw_set_colour(c_white);
+}
+
+// durante a saída o mundo fica parado
+function transicao_saindo()
+{
+    return global.trans.fase == "sai" || global.trans.fase == "espera";
+}
+
 function inicia_fase(_i, _m)
 {
     global.modo = _m;
@@ -8,8 +47,7 @@ function inicia_fase(_i, _m)
     if (_m == "challenge") { global.mortes = 0; global.tempo_total = 0; }
     global.fase_nova = true;
     global.fase_atual = _i;
-    global.estado = "play";
-    room_goto(global.salas[_i]);
+    vai_para(global.salas[_i], "play");
 }
 
 // joga uma fase do criador: "teste" (vindo do editor, valida a fase) ou "custom" (fase salva/importada)
@@ -20,15 +58,13 @@ function inicia_custom(_f, _modo)
     global.trapaceou = false;
     global.fase_nova = true;
     global.fase_atual = -1;
-    global.estado = "play";
-    room_goto(rm_custom);
+    vai_para(rm_custom, "play");
 }
 
 // volta da fase criada: o teste volta ao editor, a fase salva volta à lista
 function sai_custom()
 {
-    global.estado = (global.modo == "teste") ? "editor" : "lista_custom";
-    room_goto(rm_criador);
+    vai_para(rm_criador, (global.modo == "teste") ? "editor" : "lista_custom");
 }
 
 function proxima_fase()
@@ -40,8 +76,7 @@ function proxima_fase()
     }
     if (global.fase_atual < 0)      // sala de teste fora da lista: volta ao menu
     {
-        global.estado = "worlds";
-        room_goto(rm_menu);
+        vai_para(rm_menu, "worlds");
         return;
     }
     if (global.fase_atual + 1 >= array_length(global.fases) || (global.modo == "normal" && global.fase_atual == global.fase_final)) fim_jogo();
@@ -49,16 +84,17 @@ function proxima_fase()
     {
         global.fase_nova = true;
         global.fase_atual += 1;
-        global.estado = "play";
-        room_goto(global.salas[global.fase_atual]);
+        vai_para(global.salas[global.fase_atual], "play");
     }
 }
 
 function fim_jogo()
 {
     global.novo_recorde = false;
+    global.rank_pos = -1;
     if (global.modo == "challenge" && !global.cheat)
     {
+        rank_registra(global.tempo_total, global.mortes);
         if (global.save.desafio_tempo < 0 || global.tempo_total < global.save.desafio_tempo)
         {
             global.save.desafio_tempo = global.tempo_total;
@@ -67,13 +103,14 @@ function fim_jogo()
             grava_save();
         }
     }
-    global.estado = "win";
     global.tempo_tela = 0;
-    room_goto(rm_menu);
+    vai_para(rm_menu, "win");
 }
 
 function fase_concluida()
 {
+    // a chave foi usada para abrir a porta: o rato aparece sem a chave na boca a partir daqui
+    global.tem_chave = false;
     var L = global.info_fase;
     var r3 = false;
     if (L.objetivo3 == "cabo") r3 = (global.cabos_roidos == 0);
@@ -106,7 +143,13 @@ function fase_concluida()
         grava_save();
     }
     // terminou o teste no editor sem trapacear: a fase está validada e pode ser salva/compartilhada
-    if (global.modo == "teste" && !global.cheat && !global.trapaceou && global.ed != undefined) global.ed.validada = true;
+    // se a fase tem queijo, ele precisa ter sido pego no teste: assim não dá para criar um queijo impossível
+    if (global.modo == "teste" && !global.cheat && !global.trapaceou && global.ed != undefined)
+    {
+        if (global.queijo_fase == 0) { global.ed.validada = false; mostra_aviso("Pegue o queijo no teste para validar a fase", 4); }
+        else global.ed.validada = true;
+    }
     global.estado = "clear";
     global.tempo_tela = 0;
+    toca_som("snd_clear");
 }

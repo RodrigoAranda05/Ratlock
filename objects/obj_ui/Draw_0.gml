@@ -5,7 +5,7 @@ if (room != rm_menu && instance_exists(obj_player))
     for (var q = 0; q < array_length(global.particulas); q++)
     {
         var fagulha = global.particulas[q];
-        desenha_rect(fagulha.x, fagulha.y, 2, 2, fagulha.c);
+        desenha_particula(fagulha);
     }
-    if (global.piscada > 0) desenha_rect_alfa(0, 0, room_width, room_height, 0xffffff, global.piscada * 0.5);
+    if (global.piscada > 0 && global.config.flash) desenha_rect_alfa(0, 0, room_width, room_height, 0xffffff, global.piscada * 0.5);
 }

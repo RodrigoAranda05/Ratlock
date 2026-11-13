@@ -1,10 +1,10 @@
-// ===== obj_inimigo: pai de guardas, cão, caçador e sentinela =====
+// ===== obj_inimigo: pai de guardas, cão, caçador =====
 // A room coloca a instância no canto do tile (o inimigo fica com os pés na base dele). Os filhos escolhem o
 // "tipo" e chamam ajusta_tipo(). Para ele patrulhar precisa haver chão sob os pés; o obj_game chama
 // prepara_patrulha() quando abre a fase e atualiza() a cada quadro.
 coluna = floor(x / TL);
 linha = floor(y / TL);
-tipo = "G";            // G guarda, L lanterna, N noturno, F eletricista, C cão, H caçador, T sentinela
+tipo = "G";            // G guarda, L lanterna, N noturno, F eletricista, C cão, H caçador
 w = 12;
 h = 22;
 velh = 0;
@@ -12,16 +12,12 @@ velv = 0;
 face = -1;           // direção que olha: 1 direita, -1 esquerda
 alerta = 0;             // 1 quando viu o rato
 memoria = 0;            // quanto tempo ainda lembra
-ciclo = 0;             // relógio da sentinela
-tempo_cone = 0;     // tempo no cone da sentinela
 alarme = false;
-cego = false;      // sem ver (luz apagada / sentinela)
+cego = false;      // sem ver (luz apagada)
 no_escuro = false;       // eletricista no escuro
 trepando = 0;             // 1 escalando um cano
 reparo = 0;         // progresso do reparo do cabo
 travado = 0;
-ativo = false;
-avisando = false;
 patrulha_ini = 0;              // limites da patrulha
 patrulha_fim = 0;
 caca_ini = 0;                  // limites da perseguição (inclui degraus de 1 tile, que o inimigo pula)
@@ -36,19 +32,17 @@ ajusta_tipo = function()
 {
     w = 12; h = 22;
     if (tipo == "C") { w = 16; h = 10; }
-    else if (tipo == "H") { w = 14; h = 9; }
-    else if (tipo == "T") { w = 16; h = 24; }
     x = coluna * TL + (TL - w) / 2;
     y = (linha + 1) * TL - h;
     switch (tipo)
     {
-        case "G": sprite_index = spr_guarda_g; break;
         case "L": sprite_index = spr_guarda_l; break;
-        case "N": sprite_index = spr_guarda_n; break;
         case "F": sprite_index = spr_guarda_f; break;
         case "C": sprite_index = spr_cao; break;
-        case "H": sprite_index = spr_cacador; break;
-        case "T": sprite_index = spr_sentinela; break;
+        default:  // G e qualquer tipo antigo (N removido) caem como guarda normal
+            sprite_index = spr_guarda_g;
+            if (tipo != "G") tipo = "G";
+            break;
     }
 }
 
@@ -63,15 +57,23 @@ prepara_patrulha = function()
         y -= TL;
         fileira--;
     }
-    if (tipo == "T") return;
     atualiza_limites();
 }
 
 // próximo passo de quem anda pela fileira _fileira: retorna quantas colunas avança (0 = não dá para passar).
 // _degraus = true: um degrau de 1 tile (pedra ou grade) também conta, porque o inimigo pula na perseguição.
+// espinho nesse tile? (o inimigo não anda para cima dele)
+perigo_inimigo = function(_c, _j)
+{
+    var t = tile_em(_c, _j);
+    return (t == "^" || t == "V" || t == "<" || t == ">");
+}
+
 passo_andavel = function(_col, _dir, _fileira, _degraus)
 {
     var c = _col + _dir;
+    if (perigo_inimigo(c, _fileira) || perigo_inimigo(c, _fileira - 1)) return 0;
+    if (_degraus && (perigo_inimigo(c + _dir, _fileira) || perigo_inimigo(c + _dir, _fileira - 1))) return 0;
     if (!solido_inimigo(c, _fileira)) return solido_inimigo(c, _fileira + 1) ? 1 : 0;       // chão normal ou buraco
     if (!_degraus) return 0;
     if (solido_inimigo(c, _fileira - 1) || solido_inimigo(c, _fileira - 2)) return 0;       // alto demais
@@ -146,7 +148,6 @@ perto_de_lanterna = function()
     for (var k = 0; k < array_length(global.inimigos); k++)
     {
         var outro = global.inimigos[k];
-        if (outro.tipo == "N" && point_distance(outro.x, outro.y, x, y) < 64) return true;
     }
     return false;
 }
@@ -181,7 +182,7 @@ desencalha = function()
 atualiza = function()
 {
     desencalha();
-    if (chao && tipo != "T") atualiza_limites();
+    if (chao) atualiza_limites();
     indo_cabo = false;
     var p = global.jogador;
     var px = p.x + p.w / 2;
@@ -189,29 +190,11 @@ atualiza = function()
     var dx = px - ex;
     var dy = p.y + p.h - y - h;
 
-    if (tipo == "T")
-    {
-        // sentinela: feixe em ciclos de 4,2 s
-        ciclo = (ciclo + DT) % 4.2;
-        cego = !global.luz_ligada;
-        ativo = !cego && ciclo < 1.8;
-        avisando = !cego && ciclo > 3.7;
-        var fy = y + h;
-        var no_cone = !p.escondido && p.x + p.w > ex - 176 && p.x < ex && p.y + p.h > fy - 48 && p.y < fy && tem_visao(ex, fy - 14, px, p.y + p.h / 2);
-        if (ativo && no_cone)
-        {
-            tempo_cone += DT;
-            if (tempo_cone > 0.3) p.morre();
-        }
-        else tempo_cone = 0;
-        return;
-    }
-
-    cego = (tipo == "L" && !global.luz_ligada && !perto_de_lanterna());
-    no_escuro = (tipo == "F" && !global.luz_ligada && !perto_de_lanterna());
+    cego = false;       // L tem lanterna na cabeça, nunca fica cego; G usa no_escuro abaixo
+    no_escuro = ((tipo == "F" || tipo == "G") && !global.luz_ligada && !perto_de_lanterna());
     if (no_escuro) { alerta = 0; memoria = 0; }
 
-    var alcance = (tipo == "H") ? 130 : 90;
+    var alcance = 90;
     var enxerga = false;
     if (tipo == "C")
     {
@@ -220,7 +203,7 @@ atualiza = function()
     }
     else
     {
-        enxerga = (!no_escuro && !p.escondido && abs(dy) < 30 && abs(dx) < alcance && (tipo == "H" || sign(dx) == face) && tem_visao(ex, y + 6, px, p.y + p.h / 2));
+        enxerga = (!no_escuro && !p.escondido && abs(dy) < 30 && abs(dx) < alcance && (sign(dx) == face) && tem_visao(ex, y + 6, px, p.y + p.h / 2));
     }
 
     var velocidade = 0;
@@ -236,9 +219,10 @@ atualiza = function()
         if (alarme) alerta = 1;
         if (alerta != 0)
         {
-            face = (dx > 0) ? 1 : -1;
-            velocidade = (tipo == "H") ? 92 : ((tipo == "C") ? 128 : 82);
-            if (tipo == "H") { if (abs(dx) < 3) velocidade = 0; }
+            // faixa morta: com o rato bem em cima/embaixo (dx perto de 0) não vira de lado a cada quadro
+            if (abs(dx) > 6) face = (dx > 0) ? 1 : -1;
+            velocidade = (tipo == "C") ? 128 : 82;
+            if (abs(dx) <= 6) velocidade = 0;
             else if ((face > 0 && x >= caca_fim + 8) || (face < 0 && x <= caca_ini - 8)) velocidade = 0;
         }
         else
@@ -288,7 +272,7 @@ atualiza = function()
             else
             {
                 reparo = 0; travado = 0;
-                velocidade = (tipo == "H") ? 30 : ((tipo == "C") ? 55 : 42);
+                velocidade = (tipo == "C") ? 55 : 42;
                 if (x <= patrulha_ini) face = 1;
                 if (x >= patrulha_fim) face = -1;
             }

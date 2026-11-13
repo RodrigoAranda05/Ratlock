@@ -66,20 +66,147 @@ objetivos = function(_L)
     return ["Sem morrer", "Em até " + string(_L.tempo_par) + "s", t3];
 }
 
+// toca os sons do menu em volta da lógica de tecla_menu_base
 tecla_menu = function(_k)
 {
     var tela = global.estado;
+    var antes = global.sair_op * 1000000000 + global.sair_confirma * 3000000000 + global.menu_cursor + global.mundo_cursor * 100 + global.fase_cursor * 10000 + global.cfg_cursor * 1000000 + global.des_cursor * 100000000;
+    var bloq = (tela == "worlds" && !mundo_liberado(global.mundo_cursor)) || (tela == "select" && fases_do_mundo(global.mundo_sel)[global.fase_cursor] > fases_liberadas());
+    tecla_menu_base(_k);
+    if (tela != "title" && tela != "worlds" && tela != "select" && tela != "stats" && tela != "config" && tela != "desafio" && tela != "rank") return;
+    if (_k == "ok") { if (bloq) toca_som("snd_pouso", 0.6, 0.7); else toca_som("snd_menu_ok"); }
+    else if (_k == "esc") toca_som("snd_menu_volta");
+    else if (_k != "r" && antes != global.sair_op * 1000000000 + global.sair_confirma * 3000000000 + global.menu_cursor + global.mundo_cursor * 100 + global.fase_cursor * 10000 + global.cfg_cursor * 1000000 + global.des_cursor * 100000000) toca_som("snd_menu_move");
+}
+
+tecla_menu_base = function(_k)
+{
+    var tela = global.estado;
+    // --- pausa durante a fase ---
+    if (tela == "play" && global.pausa)
+    {
+        if (_k == "r") { global.pausa = false; global.fase_nova = true; vai_para(-1, "play"); return; }
+        if (global.pausa_sair_confirma)
+        {
+            if (_k == "left" || _k == "right" || _k == "up" || _k == "down") global.sair_op = 1 - global.sair_op;
+            else if (_k == "ok") { if (global.sair_op == 0) { grava_save(); game_end(); } else global.pausa_sair_confirma = false; }
+            else if (_k == "esc") global.pausa_sair_confirma = false;
+            return;
+        }
+        if (_k == "up") global.pausa_cursor = (global.pausa_cursor + 4) % 5;
+        else if (_k == "down") global.pausa_cursor = (global.pausa_cursor + 1) % 5;
+        else if (_k == "esc") global.pausa = false;
+        else if (_k == "ok")
+        {
+            if (global.pausa_cursor == 0) global.pausa = false;
+            else if (global.pausa_cursor == 1) { global.pausa = false; global.fase_nova = true; vai_para(-1, "play"); }
+            else if (global.pausa_cursor == 2) { global.cfg_cursor = 0; global.pausa = false; global.estado = "config"; global.volta_para_pausa = true; }
+            else if (global.pausa_cursor == 3) { global.pausa = false; grava_save(); vai_para(rm_menu, "title"); }
+            else { global.pausa_sair_confirma = true; global.sair_op = 1; }
+        }
+        return;
+    }
+    if (tela == "play")
+    {
+        if (_k == "r") { global.fase_nova = true; vai_para(-1, "play"); }
+        else if (_k == "esc")
+        {
+            // testando uma fase criada: Esc volta direto para o editor (sem passar pelo menu de pausa)
+            if (global.modo == "teste") { sai_custom(); return; }
+            // jogando uma fase custom: Esc volta direto para a lista de fases
+            if (global.modo == "custom") { sai_custom(); return; }
+            global.pausa = true;
+            global.pausa_cursor = 0;
+            global.pausa_sair_confirma = false;
+        }
+        return;
+    }
+    if (tela == "title" && global.sair_confirma)
+    {
+        if (_k == "left" || _k == "right" || _k == "up" || _k == "down") global.sair_op = 1 - global.sair_op;
+        else if (_k == "ok") { if (global.sair_op == 0) { grava_save(); game_end(); } else global.sair_confirma = false; }
+        else if (_k == "esc") global.sair_confirma = false;
+        return;
+    }
     if (tela == "title")
     {
-        if (_k == "up") global.menu_cursor = (global.menu_cursor + 3) % 4;
-        else if (_k == "down") global.menu_cursor = (global.menu_cursor + 1) % 4;
+        if (_k == "esc") { global.sair_confirma = true; global.sair_op = 1; }
+        else if (_k == "up") global.menu_cursor = (global.menu_cursor + 5) % 6;
+        else if (_k == "down") global.menu_cursor = (global.menu_cursor + 1) % 6;
         else if (_k == "ok")
         {
             if (global.menu_cursor == 0) global.estado = "worlds";
-            else if (global.menu_cursor == 1) inicia_fase(0, "challenge");
-            else if (global.menu_cursor == 2) { global.estado = "lista_custom"; global.modo = "normal"; room_goto(rm_criador); }
-            else global.estado = "stats";
+            else if (global.menu_cursor == 1) { global.des_cursor = 0; global.estado = "desafio"; }
+            else if (global.menu_cursor == 2) { global.modo = "normal"; vai_para(rm_criador, "lista_custom"); }
+            else if (global.menu_cursor == 3) global.estado = "stats";
+            else if (global.menu_cursor == 4) { global.cfg_cursor = 0; global.estado = "config"; }
+            else { global.sair_confirma = true; global.sair_op = 1; }
         }
+    }
+    else if (tela == "config")
+    {
+        var c = global.cfg_cursor;
+        if (_k == "up" || _k == "down")
+        {
+            global.cfg_cursor = (c + ((_k == "up") ? 6 : 1)) % 7;
+            global.cfg_confirma = false;
+        }
+        else if ((_k == "left" || _k == "right") && c < 2)
+        {
+            var d = (_k == "left") ? -0.1 : 0.1;
+            if (c == 0) global.config.musica = clamp(round((global.config.musica + d) * 10) / 10, 0, 1);
+            else
+            {
+                global.config.sons = clamp(round((global.config.sons + d) * 10) / 10, 0, 1);
+                toca_som("snd_estrela", 0.8);       // amostra do volume novo
+            }
+            grava_config();
+        }
+        else if ((_k == "left" || _k == "right" || _k == "ok") && c == 2)
+        {
+            global.config.tela = !global.config.tela;
+            window_set_fullscreen(global.config.tela);
+            if (!global.config.tela) aplica_resolucao();
+            grava_config();
+        }
+        else if ((_k == "left" || _k == "right" || _k == "ok") && c == 3)
+        {
+            var nr = array_length(global.resolucoes);
+            global.config.res = (global.config.res + ((_k == "left") ? nr - 1 : 1)) % nr;
+            aplica_resolucao();
+            grava_config();
+        }
+        else if ((_k == "left" || _k == "right" || _k == "ok") && c == 4)
+        {
+            global.config.flash = !global.config.flash;
+            grava_config();
+        }
+        else if (_k == "ok" && c == 5)
+        {
+            if (global.cfg_confirma) { apaga_progresso(); global.cfg_confirma = false; mostra_aviso("Progresso apagado", 2.5); }
+            else global.cfg_confirma = true;
+        }
+        else if ((_k == "ok" && c == 6) || _k == "esc") { grava_config(); global.cfg_confirma = false; if (global.volta_para_pausa) { global.volta_para_pausa = false; global.estado = "play"; global.pausa = true; } else global.estado = "title"; }
+    }
+    else if (tela == "desafio")
+    {
+        if (_k == "up") global.des_cursor = (global.des_cursor + 2) % 3;
+        else if (_k == "down") global.des_cursor = (global.des_cursor + 1) % 3;
+        else if (_k == "esc") global.estado = "title";
+        else if (_k == "ok")
+        {
+            if (global.des_cursor == 0) inicia_fase(0, "challenge");
+            else if (global.des_cursor == 1)
+            {
+                if (todas_fases_completas()) { global.rank_pos = -1; global.estado = "rank"; }
+                else { mostra_aviso("Zere todas as fases para abrir o ranking", 2.5); toca_som("snd_pouso", 0.6, 0.7); }
+            }
+            else global.estado = "title";
+        }
+    }
+    else if (tela == "rank")
+    {
+        if (_k == "ok" || _k == "esc") global.estado = "desafio";
     }
     else if (tela == "stats")
     {
@@ -88,10 +215,11 @@ tecla_menu = function(_k)
     else if (tela == "worlds")
     {
         var n = array_length(global.mundos);
-        if (_k == "left") global.mundo_cursor = max(0, global.mundo_cursor - 1);
-        else if (_k == "right") global.mundo_cursor = min(n - 1, global.mundo_cursor + 1);
-        else if (_k == "up") global.mundo_cursor = max(0, global.mundo_cursor - COLUNAS_MUNDO);
-        else if (_k == "down") global.mundo_cursor = min(n - 1, global.mundo_cursor + COLUNAS_MUNDO);
+        // o rato precisa chegar no mundo antes de andar para outro
+        if (global.mapa.anda && _k != "esc") return;
+        // o mapa é um caminho: esquerda/cima voltam um mundo, direita/baixo avançam
+        if (_k == "left" || _k == "up") global.mundo_cursor = max(0, global.mundo_cursor - 1);
+        else if (_k == "right" || _k == "down") global.mundo_cursor = min(n - 1, global.mundo_cursor + 1);
         else if (_k == "ok")
         {
             if (mundo_liberado(global.mundo_cursor))
@@ -115,48 +243,30 @@ tecla_menu = function(_k)
     else if (tela == "select")
     {
         var l = fases_do_mundo(global.mundo_sel);
+        var nl = array_length(l);
         if (_k == "left") global.fase_cursor = max(0, global.fase_cursor - 1);
-        else if (_k == "right") global.fase_cursor = min(array_length(l) - 1, global.fase_cursor + 1);
-        else if (_k == "up" && global.fase_cursor >= COLUNAS_FASE) global.fase_cursor -= COLUNAS_FASE;
-        else if (_k == "down" && global.fase_cursor + COLUNAS_FASE < array_length(l)) global.fase_cursor += COLUNAS_FASE;
-        else if (_k == "down" && floor(global.fase_cursor / COLUNAS_FASE) < floor((array_length(l) - 1) / COLUNAS_FASE)) global.fase_cursor = array_length(l) - 1;
+        else if (_k == "right") global.fase_cursor = min(nl - 1, global.fase_cursor + 1);
         else if (_k == "ok")
         {
-            if (l[global.fase_cursor] <= fases_liberadas()) inicia_fase(l[global.fase_cursor], "normal");
+            var fi = l[global.fase_cursor];
+            if (fi <= fases_liberadas()) inicia_fase(fi, "normal");
         }
         else if (_k == "esc") global.estado = "worlds";
     }
-    else if (tela == "play")
-    {
-        if (_k == "r") { global.fase_nova = false; room_restart(); }
-        else if (_k == "esc")
-        {
-            if (global.modo == "teste" || global.modo == "custom") sai_custom();
-            else if (global.modo == "challenge") { global.estado = "title"; room_goto(rm_menu); }
-            else
-            {
-                global.mundo_sel = global.info_fase.mundo;
-                global.mundo_cursor = global.mundo_sel;
-                global.fase_cursor = max(0, array_get_index(fases_do_mundo(global.mundo_sel), global.fase_atual));
-                global.estado = "select";
-                room_goto(rm_menu);
-            }
-        }
-    }
+
     else if (tela == "clear")
     {
         if (global.tempo_tela > 0.5)
         {
             if (_k == "ok") proxima_fase();
-            else if (_k == "r") { global.fase_nova = true; global.estado = "play"; room_restart(); }
+            else if (_k == "r") { global.fase_nova = true; vai_para(-1, "play"); }
             else if (_k == "esc")
             {
                 if (global.modo == "teste" || global.modo == "custom") { sai_custom(); return; }
                 global.mundo_sel = global.info_fase.mundo;
                 global.mundo_cursor = global.mundo_sel;
                 global.fase_cursor = max(0, array_get_index(fases_do_mundo(global.mundo_sel), global.fase_atual));
-                global.estado = "select";
-                room_goto(rm_menu);
+                vai_para(rm_menu, "select");
             }
         }
     }
@@ -232,129 +342,314 @@ le_teclado = function()
     if (keyboard_check_pressed(ord("R"))) tecla_menu("r");
 }
 
+prev_ult = -1;
+prev_ini = 0;
+
 desenha_menus = function()
 {
     var tela = global.estado;
     var agora = global.tempo_jogo;
     if (tela == "title")
     {
-        // o fundo (spr_fundo_menu na rm_menu) já tem o logo e o subtítulo
-        var opcoes = ["JOGAR", "MODO DESAFIO", "CRIAR FASES", "ESTATÍSTICAS"];
-        for (var k = 0; k < 4; k++)
-            titulo(((global.menu_cursor == k) ? "> " : "  ") + opcoes[k] + ((global.menu_cursor == k) ? " <" : "  "), 128 + k * 21, (global.menu_cursor == k) ? 0xffd84a : 0xf3efe6, 14);
-        var extra = "Estrelas: " + string(total_estrelas()) + "/" + string(array_length(global.fases) * 3) + "  ·  Queijos: " + string(total_queijos()) + "/" + string(total_queijos_max());
-        if (global.save.desafio_tempo >= 0) extra += "  ·  Melhor desafio: " + formata_tempo(global.save.desafio_tempo) + " (" + string(global.save.desafio_mortes) + " mortes)";
-        titulo(extra, 212, 0xa9b4c4, 10);
-        titulo("Setas + Enter  ·  F1: cheats " + (global.cheat ? "ligados" : "desligados"), 238, 0x7d8798, 10);
+        var tt = agora;
+        // véu escuro na esquerda (volta ao tamanho menor)
+        desenha_rect_alfa(0, 0, 220, VH, 0x05080f, 0.7);
+        desenha_rect_alfa(220, 0, 16, VH, 0x05080f, 0.3);
+        // --- lado direito: porta no chão, rato à direita da porta ---
+        var dx = 232, dy = 150;              // porta 3x (24x28 -> 72x84); mais à esquerda para caber o rato à direita
+        var rx = 370, ry = 234;              // rato: origem (10,20); pés em ry; ry=234 põe no chão
+        desenha_rect_alfa(dx + 4, 232, 64, 4, 0x000000, 0.4);
+        desenha_rect_alfa(rx - 26, 232, 52, 3, 0x000000, 0.35);
+        for (var q = 0; q < 3; q++)
+        {
+            desenha_rect_alfa(dx + q * 6, 232 - q * 2, 72 - q * 12, 2, 0xffd890, 0.14);
+        }
+        desenha_brilho(dx + 36, dy + 46, 60, 0.28 + 0.06 * sin(tt * 2));
+        draw_sprite_ext(spr_porta, 1, dx, dy, 3, 3, 0, c_white, 1);
+        // rato olhando para a porta (escala x negativa)
+        var passo = floor(tt * 7) % 4;
+        draw_sprite_ext(spr_rato_andando, passo, rx, ry, -3, 3, 0, c_white, 1);
+        // linhas de velocidade atrás do rato (à direita dele)
+        for (var k = 0; k < 3; k++)
+        {
+            var lxs = rx + 32 + k * 10 - ((floor(tt * 12) + k) % 3) * 3;
+            desenha_rect_alfa(lxs, 200 + k * 6, 12 - k * 2, 1, 0xdfe8ff, 0.5);
+        }
+        // chave dourada acima da porta
+        var kx = dx + 20 + sin(tt * 1.6) * 3;
+        var ky = 86 + cos(tt * 2.1) * 4;
+        desenha_brilho(kx + 8, ky + 8, 22, 0.5);
+        draw_sprite_ext(spr_chave, 0, kx, ky, 2, 2, sin(tt * 1.3) * 10 - 10, c_white, 1);
+        desenha_estrela(kx - 8, ky + 24, false);
+        desenha_estrela(kx + 36, ky + 2, false);
+        // morcegos voando
+        var mb = [[232, 36, 0.4], [300, 20, 0.55], [392, 60, 0.6], [232, 100, 0.45]];
+        for (var b = 0; b < 4; b++)
+        {
+            var bx = mb[b][0] + sin(tt * mb[b][2]) * 6;
+            var by = mb[b][1] + cos(tt * mb[b][2] * 1.3) * 4;
+            var fase = floor(tt * 3 + b) % 2;
+            desenha_morcego(bx, by, fase);
+        }
+        // logo: menor e bem à esquerda (dentro do véu escuro)
+        var escala = 0.32;
+        var lx = 2;
+        var ly = 10;
+        gpu_set_texfilter(true);
+        draw_sprite_ext(spr_logo, 0, lx, ly + sin(tt * 1.5) * 1.2, escala, escala, 0, c_white, 1);
+        gpu_set_texfilter(false);
+        // menu
+        var cur = global.menu_cursor;
+        var itens = ["JOGAR", "MODO DESAFIO", "CRIAR FASES", "ESTATÍSTICAS", "CONFIGURAÇÕES", "SAIR"];
+        desenha_menu_home(14, 88, 22, itens, cur);
+        desenha_dicas(260, [["Setas", "escolher"], ["Enter", "confirmar"], ["Esc", "sair"]]);
+        if (global.sair_confirma) desenha_popup_sair();
     }
     else if (tela == "stats")
     {
         desenha_stats();
     }
-    else if (tela == "worlds")
+    else if (tela == "config")
     {
-        desenha_rect_alfa(0, 0, VW, VH, 0x05080e, 0.9);
-        titulo("MUNDOS", 20, 0xffd84a, 18);
-        ajusta_rolagem();
-        for (var k = 0; k < array_length(global.mundos); k++)
+        desenha_fundo_menu_tela(0.74);
+        desenha_titulo_faixa("CONFIGURAÇÕES", "Áudio, vídeo e progresso");
+        var rot = ["Música", "Efeitos sonoros", "Tela cheia", "Resolução da janela", "Flashes de tela"];
+        for (var k = 0; k < 5; k++)
         {
-            var lin_m = floor(k / COLUNAS_MUNDO);
-            if (lin_m < global.mundo_rolagem || lin_m >= global.mundo_rolagem + LINHAS_MUNDO) continue;
-            var c = celula_mundo(k), cel_x = c[0], cel_y = c[1];
-            var lock = !mundo_liberado(k);
-            var l = fases_do_mundo(k);
-            desenha_rect(cel_x, cel_y, 214, 66, lock ? 0x10141b : 0x1b2433);
-            if (k == global.mundo_cursor) moldura(cel_x, cel_y, 214, 66);
-            desenha_texto("MUNDO " + string(k + 1), cel_x + 10, cel_y + 11, lock ? 0x4a5568 : 0x7d8798, "left", 9);
-            desenha_texto(lock ? "Bloqueado" : global.mundos[k].n, cel_x + 10, cel_y + 27, lock ? 0x4a5568 : 0xf3efe6, "left", 15);
-            desenha_texto(lock ? "Conclua o mundo anterior" : global.mundos[k].d, cel_x + 10, cel_y + 41, lock ? 0x4a5568 : 0xa9b4c4, "left", 8);
-            if (!lock)
+            var yy = 44 + k * 26;
+            desenha_cartao(60, yy, 360, 22, global.cfg_cursor == k, false);
+            desenha_texto(rot[k], 74, yy + 11, 0xf3efe6, "left", 11, 140);
+            if (k < 2)
             {
-                desenha_estrela(cel_x + 16, cel_y + 55, true);
-                desenha_texto(string(mundo_estrelas(k)) + "/" + string(array_length(l) * 3), cel_x + 26, cel_y + 55, 0xffd23f, "left", 9);
-                desenha_icone_queijo(cel_x + 90, cel_y + 55, true);
-                desenha_texto(string(mundo_queijos(k)) + "/" + string(mundo_queijos_max(k)), cel_x + 100, cel_y + 55, 0xffd23f, "left", 9);
+                var v = (k == 0) ? global.config.musica : global.config.sons;
+                desenha_slider(222, yy + 7, v, (k == 0) ? 0xb070ff : 0xffd84a);
+                desenha_texto(string(round(v * 100)) + "%", 410, yy + 11, 0xa9b4c4, "right", 9);
+            }
+            else if (k == 3)
+            {
+                var rr = global.resolucoes[global.config.res];
+                desenha_texto(string(rr[0]) + " x " + string(rr[1]), 410, yy + 11, global.config.tela ? 0x7d8798 : 0xffd84a, "right", 11, 130);
+            }
+            else
+            {
+                var on = (k == 2) ? global.config.tela : global.config.flash;
+                desenha_texto(on ? "LIGADO" : "DESLIGADO", 410, yy + 11, on ? 0x4ade80 : 0x7d8798, "right", 11);
             }
         }
-        if (global.mundo_rolagem > 0) desenha_seta_rolagem(VW / 2, 34, -1);
-        if (global.mundo_rolagem + LINHAS_MUNDO < ceil(array_length(global.mundos) / COLUNAS_MUNDO)) desenha_seta_rolagem(VW / 2, 256, 1);
-        titulo("Enter: abrir  ·  Esc: voltar", 266, 0x7d8798, 9);
+        // ações finais: mesmo estilo do menu principal (losango dourado + sublinhado)
+        var acoes = [global.cfg_confirma ? "CONFIRMAR? (ENTER)" : "APAGAR PROGRESSO", "VOLTAR"];
+        desenha_menu_home(VW / 2 - 80, 188, 24, acoes, global.cfg_cursor - 5);
+        desenha_dicas(254, [["Setas", "escolher e ajustar"], ["Enter", "alternar"], ["Esc", "voltar"]]);
     }
+    else if (tela == "desafio")
+    {
+        desenha_fundo_menu_tela(0.7);
+        desenha_titulo_faixa("MODO DESAFIO", "Zere todas as fases em sequência");
+        // cena à direita: rato correndo, chave brilhando
+        desenha_rect_alfa(350, 232, 60, 3, 0x000000, 0.35);
+        desenha_brilho(380, 190, 70, 0.28 + 0.05 * sin(agora * 2));
+        draw_sprite_ext(spr_rato_andando, floor(agora * 7) % 4, 380, 234, 3, 3, 0, c_white, 1);
+        draw_sprite_ext(spr_chave, 0, 320, 90 + cos(agora * 2.1) * 4, 2, 2, sin(agora * 1.3) * 10 - 10, c_white, 1);
+        // informação à esquerda
+        var melhor = (global.save.desafio_tempo >= 0) ? formata_tempo(global.save.desafio_tempo) + "  (" + string(global.save.desafio_mortes) + " mortes)" : "ainda sem recorde";
+        desenha_texto("O tempo não para e cada morte conta.", 22, 68, 0xc8d3ea, "left", 10, 240);
+        desenha_texto("Seu melhor:", 22, 88, 0xa9b4c4, "left", 9, 240);
+        desenha_texto(melhor, 22, 98, 0xffd84a, "left", 11, 240);
+        desenha_texto("Corridas no ranking: " + string(array_length(global.rank)) + " / " + string(RANK_MAX), 22, 118, 0x9aa7bd, "left", 8, 240);
+        // menu de ações, estilo home
+        var acoes = ["INICIAR DESAFIO", (todas_fases_completas() ? "RANKING" : "~RANKING"), "VOLTAR"];
+        desenha_menu_home(22, 148, 22, acoes, global.des_cursor);
+        if (!todas_fases_completas()) desenha_texto("Zere todas as fases para abrir o ranking", 22, 226, 0x9aa7c0, "left", 8, 240);
+        desenha_dicas(256, [["Setas", "escolher"], ["Enter", "confirmar"], ["Esc", "voltar"]]);
+    }
+    else if (tela == "rank")
+    {
+        desenha_fundo_menu_tela(0.8);
+        desenha_titulo_faixa("RANKING", "Melhores corridas do modo desafio");
+        desenha_texto("TEMPO", 140, 52, 0x9aa7bd, "left", 8);
+        desenha_texto("MORTES", 270, 52, 0x9aa7bd, "left", 8);
+        desenha_texto("DATA", 408, 52, 0x9aa7bd, "right", 8);
+        for (var k = 0; k < RANK_MAX; k++)
+        {
+            var yy = 62 + k * 18;
+            var meu = (k == global.rank_pos);
+            var tem = (k < array_length(global.rank));
+            desenha_linha_rank(70, yy, 350, 16, k, meu);
+            var cor = meu ? 0x3a2600 : (tem ? 0xf3efe6 : 0x6c7790);
+            if (tem)
+            {
+                desenha_texto(formata_tempo(global.rank[k].tempo), 140, yy + 8.5, cor, "left", 10);
+                desenha_texto(string(global.rank[k].mortes), 270, yy + 8.5, cor, "left", 10);
+                desenha_texto(global.rank[k].data, 408, yy + 8.5, cor, "right", 8);
+            }
+            else desenha_texto("---", 140, yy + 8.5, cor, "left", 10);
+        }
+        desenha_texto("Ranking local. O ranking online (Steam) vem depois.", VW / 2, 247, 0x9aa7bd, "center", 8);
+        desenha_dicas(262, [["Enter", "voltar"]]);
+    }
+    else if (tela == "worlds")
+    {
+        var nm = array_length(global.mundos);
+        desenha_fundo_menu_tela(0.72);
+        desenha_titulo_faixa("MUNDOS", "Escolha uma ala da prisão");
+
+        // --- lista de mundos à esquerda, estilo da home ---
+        var rot = array_create(nm);
+        for (var k = 0; k < nm; k++)
+            rot[k] = (!mundo_liberado(k) ? "~" : "") + string(k + 1) + ". " + global.mundos[k].n;
+        desenha_menu_home(14, 72, 22, rot, global.mundo_cursor);
+
+        // --- detalhe do mundo escolhido à direita ---
+        var kc = global.mundo_cursor;
+        var liberado = mundo_liberado(kc);
+        var mc = global.mundos[kc];
+        var nf = array_length(fases_do_mundo(kc));
+        var feitas = mundo_feitas(kc);
+        var estrelas = mundo_estrelas(kc);
+        var est_max = nf * 3;
+        var qmax = mundo_queijos_max(kc);
+        var queijos = mundo_queijos(kc);
+
+        // painel escuro de detalhe, borda dourada fininha
+        var dx = 232, dy = 62, dw = 236, dh = 180;
+        desenha_rect_alfa(dx, dy, dw, dh, 0x0a0e1a, 0.86);
+        desenha_rect(dx, dy, dw, 1, 0xffd84a);
+        desenha_rect(dx, dy + dh - 1, dw, 1, 0xffd84a);
+        desenha_rect(dx, dy, 1, dh, 0xffd84a);
+        desenha_rect(dx + dw - 1, dy, 1, dh, 0xffd84a);
+        desenha_rect_alfa(dx + 1, dy + 1, dw - 2, 1, 0xffffff, 0.22);
+
+        if (liberado)
+        {
+            desenha_texto("MUNDO " + string(kc + 1), dx + 12, dy + 16, 0x9aa7bd, "left", 9, dw - 24);
+            desenha_texto(mc.n, dx + 12, dy + 34, 0xffd84a, "left", 16, dw - 24);
+            desenha_texto(mc.d, dx + 12, dy + 56, 0xc8d3ea, "left", 9, dw - 24);
+            // linhas de progresso
+            desenha_texto("Fases concluídas", dx + 12, dy + 86, 0xa9b4c4, "left", 9, dw - 24);
+            desenha_texto(string(feitas) + " / " + string(nf), dx + dw - 12, dy + 86, 0xf3efe6, "right", 11, 80);
+            desenha_rect(dx + 12, dy + 100, dw - 24, 3, 0x0a0a16);
+            desenha_rect(dx + 12, dy + 100, floor((dw - 24) * feitas / max(1, nf)), 3, 0x4ade80);
+
+            desenha_texto("Estrelas", dx + 12, dy + 114, 0xa9b4c4, "left", 9, dw - 24);
+            desenha_texto(string(estrelas) + " / " + string(est_max), dx + dw - 12, dy + 114, 0xf3efe6, "right", 11, 80);
+            desenha_rect(dx + 12, dy + 128, dw - 24, 3, 0x0a0a16);
+            desenha_rect(dx + 12, dy + 128, floor((dw - 24) * estrelas / max(1, est_max)), 3, 0xffd84a);
+
+            desenha_texto("Queijos", dx + 12, dy + 142, 0xa9b4c4, "left", 9, dw - 24);
+            desenha_texto(string(queijos) + " / " + string(qmax), dx + dw - 12, dy + 142, 0xf3efe6, "right", 11, 80);
+            desenha_rect(dx + 12, dy + 156, dw - 24, 3, 0x0a0a16);
+            desenha_rect(dx + 12, dy + 156, floor((dw - 24) * queijos / max(1, qmax)), 3, 0xf5a623);
+        }
+        else
+        {
+            desenha_texto("BLOQUEADO", dx + 12, dy + 16, 0x9aa7bd, "left", 9, dw - 24);
+            desenha_texto("Mundo " + string(kc + 1), dx + 12, dy + 34, 0x7d8798, "left", 16, dw - 24);
+            desenha_cadeado(dx + dw / 2, dy + dh / 2 - 6, 0x7d8798);
+            desenha_texto("Conclua o mundo anterior para abrir.", dx + 12, dy + dh / 2 + 24, 0xa9b4c4, "center", 9, dw - 24);
+        }
+
+        desenha_dicas(262, [["Setas", "escolher"], ["Enter", "entrar"], ["Esc", "voltar"]]);
+    }
+
     else if (tela == "select")
     {
-        desenha_rect_alfa(0, 0, VW, VH, 0x05080e, 0.9);
-        titulo("MUNDO " + string(global.mundo_sel + 1) + " · " + string_upper(global.mundos[global.mundo_sel].n), 32, 0xffd84a, 18);
         var l = fases_do_mundo(global.mundo_sel);
-        ajusta_rolagem();
-        for (var n = 0; n < array_length(l); n++)
+        var nl = array_length(l);
+        // fundo da cela (spr_mapa agora é o mesmo fundo do menu) + véu escuro
+        draw_sprite(spr_mapa, 1 + (global.mundo_sel % 5), 0, 0);
+        desenha_rect_alfa(0, 0, VW, VH, 0x05080f, 0.74);
+        var fi = l[global.fase_cursor];
+        if (prev_ult != fi) { prev_ult = fi; prev_ini = agora; }
+        var lockf = (fi > fases_liberadas());
+        // título em faixa dourada com o nome do mundo
+        desenha_titulo_faixa(global.mundos[global.mundo_sel].n, "Escolha a fase");
+        // fileira de ícones no alto (abaixados para caber a faixa)
+        var passo = 32;
+        for (var n = 0; n < nl; n++)
         {
-            var lin_f = floor(n / COLUNAS_FASE);
-            if (lin_f < global.fase_rolagem || lin_f >= global.fase_rolagem + LINHAS_FASE) continue;
             var idx = l[n];
-            var L = global.fases[idx];
-            var c = celula_fase(n), cel_x = c[0], cel_y = c[1];
             var lock = (idx > fases_liberadas());
-            desenha_rect(cel_x, cel_y, 100, 82, lock ? 0x10141b : 0x1b2433);
-            if (n == global.fase_cursor) moldura(cel_x, cel_y, 100, 82);
-            desenha_texto(lock ? "--" : string(idx + 1), cel_x + 50, cel_y + 16, lock ? 0x4a5568 : 0xf3efe6, "center", 16);
-            desenha_texto(lock ? "bloqueada" : L.nome, cel_x + 50, cel_y + 38, lock ? 0x4a5568 : 0xa9b4c4, "center", 8);
+            var est = lock ? 0 : (global.save.feita[idx] ? 2 : 1);
             var sv = global.save.estrelas[idx];
-            for (var q = 0; q < 3; q++) desenha_estrela(cel_x + 50 - 20 + q * 20, cel_y + 82 - 16, !lock && sv[q] == 1);
-            if (L.tem_queijo > 0 && !lock) desenha_icone_queijo(cel_x + 100 - 13, cel_y + 13, global.save.queijo[idx] == 1);
+            desenha_icone_fase(VW / 2 + (n - (nl - 1) / 2) * passo, 56, idx + 1, est, n == global.fase_cursor, sv[0] + sv[1] + sv[2]);
         }
-        if (global.fase_rolagem > 0) desenha_seta_rolagem(VW / 2, 52, -1);
-        if (global.fase_rolagem + LINHAS_FASE < ceil(array_length(l) / COLUNAS_FASE)) desenha_seta_rolagem(VW / 2, 252, 1);
-        titulo("Enter: jogar  ·  Esc: mundos", 264, 0x7d8798, 9);
+        desenha_previa_fase(fi, lockf, clamp((agora - prev_ini) / 0.18, 0, 1));
+        // setas laterais douradas
+        var pul = sin(agora * 6) * 1.5;
+        var ca = (global.fase_cursor > 0) ? 0xffd84a : 0x3a4252, cb = (global.fase_cursor < nl - 1) ? 0xffd84a : 0x3a4252;
+        draw_set_colour(cor_rgb(ca)); draw_triangle(66 - pul, 150, 74 - pul, 142, 74 - pul, 158, false);
+        draw_set_colour(cor_rgb(cb)); draw_triangle(414 + pul, 150, 406 + pul, 142, 406 + pul, 158, false);
+        draw_set_colour(c_white);
+        // barra de rodapé plana com linha dourada (mesmo clima do menu principal)
+        var Lf = global.fases[fi];
+        desenha_rect_alfa(0, 226, VW, 30, 0x0a0e1a, 0.92);
+        desenha_rect(0, 224, VW, 2, 0xffd84a);
+        desenha_texto("Fase " + string(fi + 1) + " · " + (lockf ? "???" : Lf.nome), 10, 236, 0xffd84a, "left", 12);
+        desenha_texto("Mundo " + string(global.mundo_sel + 1) + " · " + global.mundos[global.mundo_sel].n + "   " + string(round(100 * mundo_feitas(global.mundo_sel) / nl)) + "%", 10, 248, 0x9aa7bd, "left", 8);
+        if (!lockf)
+        {
+            var sv2 = global.save.estrelas[fi];
+            for (var q = 0; q < 3; q++) desenha_estrela(VW - 66 + q * 12, 236, sv2[q] == 1);
+            desenha_texto("Par " + string(Lf.tempo_par) + "s" + ((Lf.tem_queijo > 0) ? "   queijo " + (global.save.queijo[fi] ? "sim" : "não") : ""), VW - 10, 248, 0x9aa7bd, "right", 8);
+        }
+        desenha_dicas(262, [["Setas", "escolher"], ["Enter", "jogar"], ["Esc", "mapa"]]);
     }
+
     else if (tela == "clear")
     {
         var L = global.info_fase;
-        desenha_rect_alfa(0, 0, VW, VH, 0x05080e, 0.68);
-        titulo("SALA CONCLUÍDA!", 52, 0xffd84a, 26);
+        desenha_rect_alfa(0, 0, VW, VH, 0x03060b, 0.72);
+        desenha_cartao(70, 26, 340, 232, false, false);
+        desenha_titulo_secao("SALA CONCLUÍDA!", 50, 24);
         titulo(L.nome, 80, 0xa9b4c4, 11);
         if (global.modo == "teste" || global.modo == "custom")
         {
             if (global.modo == "teste")
             {
                 var valida = (global.ed != undefined && global.ed.validada);
-                titulo(valida ? "FASE VALIDADA!" : "Fase NÃO validada (cheats usados)", 124, valida ? 0x4ade80 : 0xff6b5e, 16);
-                titulo(valida ? "Agora você pode salvar e compartilhar esta fase." : "Zere a fase sem cheats para poder salvar.", 148, 0xa9b4c4, 11);
+                var sem_queijo = (global.queijo_fase == 0);
+                titulo(valida ? "FASE VALIDADA!" : (sem_queijo ? "Fase NÃO validada (faltou o queijo)" : "Fase NÃO validada (cheats usados)"), 124, valida ? 0x4ade80 : 0xff6b5e, 16);
+                titulo(valida ? "Agora você pode salvar e compartilhar esta fase." : (sem_queijo ? "Pegue o queijo e chegue à porta para validar." : "Zere a fase sem cheats para poder salvar."), 148, 0xa9b4c4, 11);
             }
             else titulo("Fase do jogador", 130, 0xa9b4c4, 14);
             titulo("Tempo: " + string_format(global.tempo_fase, 1, 1) + "s  ·  Mortes na sala: " + string(global.mortes_fase), 190, 0xa9b4c4, 10);
-            if (global.tempo_tela > 0.5) titulo("Enter: " + ((global.modo == "teste") ? "voltar ao editor" : "voltar à lista") + "  ·  R: repetir", 242, 0x7d8798, 10);
+            if (global.tempo_tela > 0.5) desenha_dicas(242, [["Enter", (global.modo == "teste") ? "voltar ao editor" : "voltar à lista"], ["R", "repetir"]]);
         }
         else if (global.modo == "normal")
         {
             var metas = objetivos(L);
             for (var k = 0; k < 3; k++)
             {
+                desenha_painel(128, 107 + k * 26, 224, 22, global.estrelas_fase[k] ? 0.85 : 0.5, global.estrelas_fase[k] ? 0xb8962f : 0x2d3c56);
                 desenha_estrela(142, 118 + k * 26, global.estrelas_fase[k]);
-                desenha_texto(metas[k], 162, 118 + k * 26, global.estrelas_fase[k] ? 0xf3efe6 : 0x7d8798, "left", 12);
+                desenha_texto(metas[k], 160, 118 + k * 26, global.estrelas_fase[k] ? 0xf3efe6 : 0x7d8798, "left", 11);
             }
             if (global.queijo_fase >= 0)
             {
+                desenha_painel(128, 183, 224, 22, (global.queijo_fase == 1) ? 0.85 : 0.5, (global.queijo_fase == 1) ? 0xb8962f : 0x2d3c56);
                 desenha_icone_queijo(142, 194, global.queijo_fase == 1);
-                desenha_texto((global.queijo_fase == 1) ? "Queijo coletado!" : "Queijo não coletado", 162, 194, (global.queijo_fase == 1) ? 0xffd23f : 0x7d8798, "left", 12);
+                desenha_texto((global.queijo_fase == 1) ? "Queijo coletado!" : "Queijo não coletado", 160, 194, (global.queijo_fase == 1) ? 0xffd23f : 0x7d8798, "left", 11);
             }
             titulo("Tempo: " + string_format(global.tempo_fase, 1, 1) + "s  ·  Mortes na sala: " + string(global.mortes_fase), 216, 0xa9b4c4, 10);
             if (global.cheat) titulo("Cheats ligados: progresso não é salvo", 229, 0xffd84a, 9);
             if (global.tempo_tela > 0.5)
             {
                 var fim = (global.fase_atual + 1 >= array_length(global.fases) || global.fase_atual == global.fase_final);
-                titulo("Enter: " + (fim ? "continuar" : "próxima") + "  ·  R: repetir  ·  Esc: salas", 242, 0x7d8798, 10);
+                desenha_dicas(242, [["Enter", fim ? "continuar" : "próxima"], ["R", "repetir"], ["Esc", "salas"]]);
             }
         }
         else titulo("Total: " + formata_tempo(global.tempo_total) + "  ·  Mortes: " + string(global.mortes), 130, 0xf3efe6, 14);
     }
     else if (tela == "win")
     {
-        desenha_rect_alfa(0, 0, VW, VH, 0x05080e, 0.86);
-        titulo("VOCÊ ESCAPOU!", 60, 0xffd84a, 30);
+        desenha_fundo_tela(2);
+        desenha_cartao(60, 28, 360, 216, false, false);
+        desenha_titulo_secao("VOCÊ ESCAPOU!", 62, 28);
         if (global.modo == "challenge")
         {
             titulo("Tempo total: " + formata_tempo(global.tempo_total), 112, 0xf3efe6, 16);
             titulo("Mortes: " + string(global.mortes), 138, 0xf3efe6, 14);
+            if (global.rank_pos >= 0) titulo("Ranking: #" + string(global.rank_pos + 1), 192, 0xffd84a, 12);
             if (global.novo_recorde) titulo("NOVO RECORDE!", 166, 0x4ade80, 12);
             else titulo("Recorde: " + ((global.save.desafio_tempo >= 0) ? formata_tempo(global.save.desafio_tempo) + " (" + string(global.save.desafio_mortes) + " mortes)" : "-"), 166, 0xa9b4c4, 12);
         }
@@ -362,17 +657,18 @@ desenha_menus = function()
         {
             titulo("Estrelas: " + string(total_estrelas()) + "/" + string(array_length(global.fases) * 3), 112, 0xf3efe6, 16);
             titulo("Queijos: " + string(total_queijos()) + "/" + string(total_queijos_max()), 138, 0xffd23f, 14);
-            titulo((global.fase_atual == global.fase_final) ? "Mundo novo desbloqueado: COFRE (lasers e pisos)" : "Tente pegar todas as estrelas e queijos", 166, 0xa9b4c4, 11);
+            titulo((global.fase_atual == global.fase_final) ? "Mundo novo desbloqueado: COFRE (lasers e blocos de cor)" : "Tente pegar todas as estrelas e queijos", 166, 0xa9b4c4, 11);
         }
-        if (global.tempo_tela > 0.8) titulo("Enter: voltar ao menu", 226, 0x7d8798, 10);
+        if (global.tempo_tela > 0.8) desenha_dicas(226, [["Enter", "voltar ao menu"]]);
     }
 }
+
 
 // tela de estatísticas: progresso do jogo e números gerais
 desenha_stats = function()
 {
-    desenha_rect_alfa(0, 0, VW, VH, 0x05080e, 0.92);
-    titulo("ESTATÍSTICAS", 22, 0xffd84a, 18);
+    desenha_fundo_menu_tela(0.72);
+    desenha_titulo_faixa("ESTATÍSTICAS", "Seu progresso na prisão");
     var nfases = array_length(global.fases);
     var feitas = total_feitas();
     var estrelas = total_estrelas();
@@ -388,11 +684,11 @@ desenha_stats = function()
     for (var k = 0; k < array_length(linhas_esq); k++)
     {
         var l = linhas_esq[k];
-        var yy = 48 + k * 30;
-        desenha_rect(30, yy, 200, 26, 0x1b2433);
-        desenha_texto(l.t, 38, yy + 8, 0xa9b4c4, "left", 9);
-        desenha_texto(l.v, 222, yy + 8, 0xf3efe6, "right", 11);
-        desenha_barra(38, yy + 18, 184, 3, l.f, l.c);
+        var yy = 56 + k * 32;
+        desenha_cartao(30, yy, 200, 28, false, false);
+        desenha_texto(l.t, 42, yy + 9, 0xc4cee0, "left", 9, 100);
+        desenha_texto(l.v, 218, yy + 9, 0xffffff, "right", 11, 90);
+        desenha_barra(42, yy + 20, 176, 3, l.f, l.c);
     }
 
     // coluna da direita: números gerais
@@ -406,14 +702,14 @@ desenha_stats = function()
     for (var k = 0; k < array_length(linhas_dir); k++)
     {
         var l = linhas_dir[k];
-        var yy = 48 + k * 30;
-        desenha_rect(250, yy, 200, 26, 0x1b2433);
-        desenha_texto(l.t, 258, yy + 13, 0xa9b4c4, "left", 9);
-        desenha_texto(l.v, 442, yy + 13, 0xf3efe6, "right", 11);
+        var yy = 56 + k * 32;
+        desenha_cartao(250, yy, 200, 28, false, false);
+        desenha_texto(l.t, 264, yy + 14, 0xc4cee0, "left", 9, 120);
+        desenha_texto(l.v, 438, yy + 14, 0xffffff, "right", 11, 80);
     }
-    desenha_rect(30, 172, 420, 22, 0x1b2433);
-    desenha_texto("Melhor modo desafio", 38, 183, 0xa9b4c4, "left", 9);
-    desenha_texto(melhor, 442, 183, 0xf3efe6, "right", 11);
+    desenha_cartao(30, 188, 420, 22, true, false);
+    desenha_texto("Melhor modo desafio", 50, 199, 0xc4cee0, "left", 9, 150);
+    desenha_texto(melhor, 430, 199, 0xffd84a, "right", 11, 240);
 
     // estrelas por mundo
     var n = array_length(global.mundos);
@@ -421,69 +717,26 @@ desenha_stats = function()
     for (var w = 0; w < n; w++)
     {
         var xx = 30 + w * larg;
+        desenha_cartao(xx + 1, 214, larg - 2, 30, false, false);
         var maximo = array_length(fases_do_mundo(w)) * 3;
-        desenha_texto(global.mundos[w].n, xx + larg / 2, 204, 0xa9b4c4, "center", 9);
-        desenha_barra(xx + 4, 212, larg - 8, 5, mundo_estrelas(w) / max(1, maximo), 0xffd23f);
-        desenha_texto(string(mundo_feitas(w)) + "/" + string(array_length(fases_do_mundo(w))) + " fases", xx + larg / 2, 227, 0x7d8798, "center", 8);
+        desenha_texto(global.mundos[w].n, xx + larg / 2, 223, 0xf3efe6, "center", 8, larg - 18);
+        desenha_barra(xx + 10, 231, larg - 20, 3, mundo_estrelas(w) / max(1, maximo), 0xffd23f);
+        desenha_texto(string(mundo_feitas(w)) + "/" + string(array_length(fases_do_mundo(w))) + " fases", xx + larg / 2, 239, 0x9aa7bd, "center", 7, larg - 18);
     }
-    titulo("Enter ou Esc: voltar", 256, 0x7d8798, 9);
+    desenha_dicas(262, [["Enter", "voltar"], ["Esc", "voltar"]]);
 }
 
 desenha_hud = function()
 {
-    var agora = global.tempo_jogo;
-    var L = global.info_fase;
-    desenha_rect(0, 0, VW, 16, 0x0e131b);
-    desenha_rect(0, 16, VW, 1, 0x2a3446);
-    desenha_texto("MORTES: " + string(global.mortes), 6, 9, 0xf3efe6, "left", 10);
-    if (instance_exists(obj_botao))
-    {
-        desenha_rect(5, 20, 14, 8, 0x000000);
-        desenha_rect(6, 21, 12, 6, (global.cor_ativa >= 0) ? cor_do_botao(global.cor_ativa) : 0x333333);
-    }
-    if (global.alarme) desenha_texto("ALARME", VW / 2, 9, (floor(agora * 6) % 2 == 1) ? 0xff4030 : 0xffd84a, "center", 10);
-    if (global.modo == "challenge") desenha_texto("TOTAL " + formata_tempo(global.tempo_total), 84, 9, 0xa9b4c4, "left", 10);
-    else if (global.modo == "teste" || global.modo == "custom") desenha_texto(string(floor(global.tempo_fase)) + "s", 84, 9, 0xa9b4c4, "left", 10);
-    else desenha_texto(string(floor(global.tempo_fase)) + "s/" + string(L.tempo_par) + "s", 84, 9, 0xa9b4c4, "left", 10);
-    desenha_texto(((global.fase_atual >= 0) ? string(global.fase_atual + 1) + "/" + string(array_length(global.fases)) + " " : "") + string_upper(L.nome), VW - 6, 9, 0xf3efe6, "right", 10);
-    if (global.tem_chave)
-    {
-        desenha_rect(VW - 22, 22, 5, 5, 0xffd23f);
-        desenha_rect(VW - 18, 24, 7, 2, 0xffd23f);
-    }
-    if (array_length(global.queijos) > 0)
-    {
-        var algum = false;
-        for (var q = 0; q < array_length(global.queijos); q++) { if (global.queijos[q].pego) algum = true; }
-        desenha_icone_queijo(VW - 34, 26, algum);
-    }
+    // HUD removida a pedido: nada de MORTES/tempo, FASE, alarme, ícones
+    // (chave/queijo/cor) nem popups de aviso durante o jogo.
+    // Apenas a linha de cheats fica, como ferramenta de debug interna.
     if (global.cheat)
     {
         desenha_texto("CHEATS" + (global.invencivel ? " · INVENCIVEL" : "") + "   N/B: fase · I: invencivel · Y: chave · U: concluir", 6, VH - 7, 0xffd84a, "left", 8);
     }
-    if (global.aviso_tempo > 0 && global.estado == "play")
-    {
-        var s = global.aviso_texto;
-        var w = largura_texto(s, 10);
-        if (w > VW - 24)
-        {
-            // quebra em duas linhas
-            var metade = floor(string_length(s) / 2);
-            var pos = metade;
-            while (pos > 1 && string_char_at(s, pos) != " ") pos--;
-            var linha1 = string_copy(s, 1, pos - 1);
-            var linha2 = string_copy(s, pos + 1, string_length(s));
-            var larg_caixa = max(largura_texto(linha1, 10), largura_texto(linha2, 10)) + 14;
-            desenha_rect_alfa(VW / 2 - larg_caixa / 2, VH - 18 - 30, larg_caixa, 30, 0x0a0e14, 0.85);
-            desenha_texto(linha1, VW / 2, VH - 18 - 30 + 9, 0xffe9a0, "center", 10);
-            desenha_texto(linha2, VW / 2, VH - 18 - 30 + 22, 0xffe9a0, "center", 10);
-        }
-        else
-        {
-            desenha_rect_alfa(VW / 2 - w / 2 - 7, VH - 18 - 17, w + 14, 17, 0x0a0e14, 0.85);
-            desenha_texto(s, VW / 2, VH - 18 - 17 + 9, 0xffe9a0, "center", 10);
-        }
-    }
+    // silencia qualquer aviso que ainda esteja em contagem
+    if (global.aviso_tempo > 0) global.aviso_tempo = 0;
 }
 
 cor_do_botao = function(_n)
@@ -517,6 +770,55 @@ desenha_vento = function()
     }
 }
 
+// transição de tela em persianas: fecha (0.45 s), troca de room, abre (0.5 s)
+atualiza_transicao = function()
+{
+    var tr = global.trans;
+    if (tr.fase == "sai")
+    {
+        tr.t = min(1, tr.t + DT / 0.45);
+        if (tr.t >= 1)
+        {
+            tr.fase = "espera";
+            tr.origem = room;
+            if (tr.estado != undefined) global.estado = tr.estado;
+            if (tr.destino == -1) room_restart(); else room_goto(tr.destino);
+        }
+    }
+    else if (tr.fase == "espera")
+    {
+        // garantia: se a room mudou e o Room Start não clareou, clareia aqui
+        if (room != tr.origem) { tr.fase = "entra"; tr.t = 1; }
+    }
+    else if (tr.fase == "entra")
+    {
+        tr.t = max(0, tr.t - DT / 0.5);
+        if (tr.t <= 0) tr.fase = "off";
+    }
+}
+
+// o rato do mapa anda até o nó escolhido (na troca de tela ele já nasce no nó)
+atualiza_mapa = function()
+{
+    var tela = global.estado;
+    global.mapa.anda = false;
+    return;
+    if (tela != "worlds") { global.mapa.estado = ""; return; }
+    var alvo;
+    alvo = pos_no_mapa(global.mundo_cursor, array_length(global.mundos));
+    var oy = -30;
+    var m = global.mapa;
+    if (m.estado != tela) { m.estado = tela; m.rx = alvo[0]; m.ry = alvo[1] + oy; m.anda = false; return; }
+    var dx = alvo[0] - m.rx, dy = (alvo[1] + oy) - m.ry;
+    var d = point_distance(0, 0, dx, dy);
+    if (d < 2.5) { m.rx = alvo[0]; m.ry = alvo[1] + oy; m.anda = false; return; }
+    var v = min(d, 150 * DT);
+    m.rx += dx / d * v;
+    m.ry += dy / d * v;
+    m.anda = true;
+    if (abs(dx) > 1) m.face = sign(dx);
+}
+
 // partículas: faíscas que os outros objetos criam com faiscas()
 atualiza_particulas = function()
 {
@@ -525,7 +827,7 @@ atualiza_particulas = function()
     {
         var fagulha = global.particulas[q];
         fagulha.l -= DT;
-        fagulha.vy += 300 * DT;
+        fagulha.vy += fagulha.g * DT;
         fagulha.x += fagulha.vx * DT;
         fagulha.y += fagulha.vy * DT;
         if (fagulha.l > 0) array_push(vivas, fagulha);

@@ -25,7 +25,7 @@ if (global.estado == "lista_custom")
     var item = itens[lista_cursor];
 
     if (keyboard_check(vk_control) && keyboard_check_pressed(ord("V"))) importa_clipboard();
-    else if (tecla_esc) { global.estado = "title"; room_goto(rm_menu); }
+    else if (tecla_esc) vai_para(rm_menu, "title");
     else if (tecla_ok)
     {
         if (item.t == "novo") { novo_rascunho(); global.estado = "editor"; }
@@ -86,10 +86,11 @@ if (mouse_check_button_pressed(mb_left))
     if (s >= 0)
     {
         var ps = (s == 0) ? -1 : global.pecas_vis[s - 1];
+        pulso_slot[s] = 1;
         if (ps == sel) gira_variante();       // clicar de novo na peça escolhida troca a variante
         else escolhe_peca(ps);
     }
-    else if (b >= 0) executa_acao(botoes[b].acao);
+    else if (b >= 0) { pulso_botao[b] = 1; executa_acao(botoes[b].acao); }
 }
 var cel = celula_sob_mouse();
 if (cel != undefined)

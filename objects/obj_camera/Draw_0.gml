@@ -16,4 +16,4 @@ if (ligada)
     draw_set_alpha(1);
     draw_set_colour(c_white);
 }
-draw_sprite(spr_camera, ligada ? (vermelho ? 1 : 0) : 2, x, y);
+draw_sprite(spr_camera, ligada ? (vermelho ? 1 : 0) : 2, x, y - 4);      // a arte tem origem no teto do tile; o cone sai de y

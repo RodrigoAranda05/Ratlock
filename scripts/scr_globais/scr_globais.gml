@@ -9,6 +9,7 @@ function inicia_globais()
     global.colunas = 30;
     global.linhas = 17;
     cria_fonte();
+    inicia_audio();
 
     // tempo, avisos e telas
     global.tempo_jogo = 0;          // relógio de animação (nunca para)
@@ -22,6 +23,19 @@ function inicia_globais()
     global.mundo_cursor = 0;
     global.mundo_sel = 0;
     global.fase_cursor = 0;
+    global.cfg_cursor = 0;
+    global.cfg_confirma = false;    // true = esperando o segundo Enter para apagar o progresso
+    global.des_cursor = 0;          // linha do menu do modo desafio
+    global.cfg_cursor = 0;          // linha escolhida em CONFIGURAÇÕES
+    global.menu_barra_y = -1;
+    global.mundo_quadro = -1;
+    global.pausa = false;              // true quando o menu de pausa está aberto
+    global.pausa_cursor = 0;            // escolha do menu de pausa
+    global.pausa_sair_confirma = false;
+    global.volta_para_pausa = false; // sub-popup de confirmar saída dentro do pausa       // x da moldura dourada na seleção de mundo (desliza até o escolhido)
+    global.sair_confirma = false;   // popup "sair do jogo?" aberto na tela inicial
+    global.sair_op = 1;             // 0 = SIM, 1 = NÃO
+    global.mapa = {rx: 0, ry: 0, estado: "", anda: false, face: 1};    // rato andando no mapa de mundos/fases
     global.fase_rolagem = 0;        // primeira linha de fases visível na seleção
     global.mundo_rolagem = 0;       // primeira linha de mundos visível
 
@@ -53,7 +67,7 @@ function inicia_globais()
     global.fase_atual = 0;          // índice em global.fases (-1 = sala de teste fora da lista)
     global.info_fase = undefined;   // struct com nome, tempo_par, dica... da fase atual
     global.fase_nova = true;        // true = zera os contadores da fase ao abrir a room
-    global.cor_ativa = -1;          // cor dos portões/pisos abertos (-1 nenhuma)
+    global.cor_ativa = -1;          // cor dos blocos de cor sólidos (-1 nenhuma)
     global.cor_pendente = -1;
     global.luz_ligada = true;
     global.tem_chave = false;
@@ -64,6 +78,7 @@ function inicia_globais()
     // o que a fase em andamento tem (montado pelo obj_game.monta_fase no Room Start)
     global.grade = [];              // grade de colisão: um caractere por tile
     global.mapa_vento = [];
+    global.trans = {fase: "off", t: 0, destino: -1, origem: -1, estado: undefined};     // transição de tela: off, sai (escurece), espera, entra (clareia)
     global.particulas = [];
     global.caixas = [];
     global.cabos = [];

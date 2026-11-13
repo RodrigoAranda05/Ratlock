@@ -4,9 +4,15 @@
 event_inherited();
 simbolo = "=";
 
+espelha = false;
+
 liga = function()
 {
-    image_index = quadro_plataforma(tile_em(coluna - 1, linha) == "=", tile_em(coluna + 1, linha) == "=",
-        tile_em(coluna - 1, linha) == "S", tile_em(coluna + 1, linha) == "S");
-    global.plat_span[linha][coluna] = span_plataforma(image_index);     // só a parte com barra segura o rato
+    var pe = (tile_em(coluna - 1, linha) == "=");
+    var pd = (tile_em(coluna + 1, linha) == "=");
+    var we = (tile_em(coluna - 1, linha) == "S");
+    var wd = (tile_em(coluna + 1, linha) == "S");
+    image_index = quadro_plataforma(pe, pd, we, wd);
+    espelha = plataforma_espelha(pe, pd, we, wd);
+    global.plat_span[linha][coluna] = span_plataforma(image_index, espelha);     // só a parte com barra segura o rato
 }

@@ -12,6 +12,7 @@ atualiza = function()
     if (!pego && point_distance(x, y, p.x + p.w / 2, p.y + p.h / 2) < 12)
     {
         pego = true;
+        toca_som("snd_queijo");
         faiscas(x, y, 18);
         mostra_aviso("Queijo encontrado!", 2.5);
     }

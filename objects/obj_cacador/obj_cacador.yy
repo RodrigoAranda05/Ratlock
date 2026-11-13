@@ -32,10 +32,7 @@
   "resourceType":"GMObject",
   "resourceVersion":"2.0",
   "solid":false,
-  "spriteId":{
-    "name":"spr_ed_cacador",
-    "path":"sprites/spr_ed_cacador/spr_ed_cacador.yy",
-  },
+  "spriteId":null,
   "spriteMaskId":null,
   "visible":true,
 }

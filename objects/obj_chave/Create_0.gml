@@ -8,6 +8,7 @@ h = 6;
 velh = 0;
 velv = 0;
 estado = "home";        // home = no lugar, carried = na boca, free = solta no chão
+na_agua = false;        // dentro da poça (respinga só ao entrar)
 tempo_livre = 0;        // há quanto tempo está solta (volta sozinha depois de 12 s)
 espera_pega = 0;        // depois de soltar, demora um pouco para poder pegar de novo
 depth = -1;
@@ -21,8 +22,8 @@ solta = function()
     global.tem_chave = false;
     x = p.x + p.w / 2 + p.face * 5 - 3;
     y = p.y + 1;
-    velh = global.teclas.baixo ? p.face * 15 : p.face * 95;
-    velv = global.teclas.baixo ? 0 : -290;
+    velh = global.teclas.baixo ? p.face * 15 : p.face * 62;
+    velv = global.teclas.baixo ? 0 : -190;
     tempo_livre = 0;
     espera_pega = 0.5;
 }
@@ -30,14 +31,7 @@ solta = function()
 // a chave solta encostou num espinho? (mesma caixa de espinho que mata o rato)
 toca_espinho = function()
 {
-    for (var j = floor(y / TL); j <= floor((y + h) / TL); j++)
-    {
-        for (var i = floor(x / TL); i <= floor((x + w) / TL); i++)
-        {
-            if (tile_em(i, j) == "^" && retangulos_batem(self, {x: i * TL + 2, y: j * TL + 7, w: 12, h: 9})) return true;
-        }
-    }
-    return false;
+    return espinho_toca(self);
 }
 
 // volta ao lugar de origem
@@ -50,6 +44,7 @@ volta = function(_destruida = false)
     velv = 0;
     tempo_livre = 0;
     faiscas(casa_x, casa_y, 14);
+    toca_som("snd_solta");
     mostra_aviso(_destruida ? "A chave foi destruída pelo espinho e voltou ao lugar de origem" : "A chave voltou ao lugar de origem", 2.5);
 }
 
@@ -64,7 +59,13 @@ atualiza = function()
         velv = min(velv + 900 * DT, 400);
         if (move_x_grade(self, velh * DT, solido_rato)) velh = 0;
         if (move_y_grade(self, velv * DT, solido_rato, true)) { if (velv > 0) velh = 0; velv = 0; }
-        tempo_livre += DT;
+        // em cima de um botão ela fica parada fazendo peso: o relógio de 12 s não corre
+        var _no_botao = false;
+        with (obj_botao) { if (com_caixa && !_no_botao) _no_botao = retangulos_batem(other, {x: coluna * TL + 2, y: linha * TL + 10, w: 12, h: 6}); }
+        if (!_no_botao) tempo_livre += DT;
+        var _ag = superficie_agua(x + 3, y + 5);
+        if (_ag != -1 && !na_agua) { espirra(x + 3, _ag, velv / 300); toca_som("snd_agua", 0.7, 1.3); }
+        na_agua = (_ag != -1);
         if (toca_espinho()) { faiscas(x + 3, y + 3, 18); volta(true); return; }
         if (tempo_livre > 12 || y > GH * TL) volta();
     }
@@ -73,10 +74,10 @@ atualiza = function()
         estado = "carried";
         global.tem_chave = true;
         tempo_livre = 0;
+        toca_som("snd_chave");
         // o caçador dispara quando alguém pega a chave
         with (obj_inimigo)
         {
-            if (tipo == "H") alarme = true;
         }
     }
 }

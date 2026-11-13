@@ -13,6 +13,7 @@ depth = -3;
 dispara_alarme = function()
 {
     global.alarme = true;
+    toca_som("snd_alarme", 0.8);
     with (obj_inimigo)
     {
         if (string_pos(tipo, "GLNCF") > 0) alarme = true;
