@@ -17,7 +17,8 @@ function desenha_transicao()
     if (global.trans.fase == "off") return;
     var p = clamp(global.trans.t, 0, 1);
     var n = 16;
-    var larg = JANELA_W / n;
+    var _gw = gui_largura(), _gh = gui_altura();   // GUI = janela inteira
+    var larg = _gw / n;
     var atraso = 0.55;
     draw_set_colour(c_black);
     draw_set_alpha(1);
@@ -26,8 +27,8 @@ function desenha_transicao()
         var local = clamp((p * (1 + atraso) - (i / (n - 1)) * atraso), 0, 1);
         var e = local * local * (3 - 2 * local);
         if (e <= 0) continue;
-        var h = JANELA_H * e;
-        var y0 = (i % 2 == 0) ? 0 : JANELA_H - h;
+        var h = _gh * e;
+        var y0 = (i % 2 == 0) ? 0 : _gh - h;
         draw_rectangle(floor(i * larg) - 1, y0 - 1, ceil((i + 1) * larg) + 1, y0 + h + 1, false);
     }
     draw_set_colour(c_white);
@@ -151,5 +152,6 @@ function fase_concluida()
     }
     global.estado = "clear";
     global.tempo_tela = 0;
+    global.vit_som = [false, false, false];      // as estrelas da tela de vitória tocam o som uma vez cada
     toca_som("snd_clear");
 }

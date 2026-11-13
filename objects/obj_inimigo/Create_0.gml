@@ -69,15 +69,21 @@ perigo_inimigo = function(_c, _j)
     return (t == "^" || t == "V" || t == "<" || t == ">");
 }
 
+// dá para pisar no tile (_c,_j)? Bloco sólido ou plataforma de mão única (=)
+chao_inimigo = function(_c, _j)
+{
+    return solido_inimigo(_c, _j) || tile_em(_c, _j) == "=";
+}
+
 passo_andavel = function(_col, _dir, _fileira, _degraus)
 {
     var c = _col + _dir;
     if (perigo_inimigo(c, _fileira) || perigo_inimigo(c, _fileira - 1)) return 0;
     if (_degraus && (perigo_inimigo(c + _dir, _fileira) || perigo_inimigo(c + _dir, _fileira - 1))) return 0;
-    if (!solido_inimigo(c, _fileira)) return solido_inimigo(c, _fileira + 1) ? 1 : 0;       // chão normal ou buraco
+    if (!solido_inimigo(c, _fileira)) return chao_inimigo(c, _fileira + 1) ? 1 : 0;        // chão (bloco ou plataforma) ou buraco
     if (!_degraus) return 0;
     if (solido_inimigo(c, _fileira - 1) || solido_inimigo(c, _fileira - 2)) return 0;       // alto demais
-    if (solido_inimigo(c + _dir, _fileira) || !solido_inimigo(c + _dir, _fileira + 1)) return 0;  // sem lugar para cair
+    if (solido_inimigo(c + _dir, _fileira) || !chao_inimigo(c + _dir, _fileira + 1)) return 0;  // sem lugar para cair
     return 2;
 }
 
@@ -298,7 +304,8 @@ atualiza = function()
     else
     {
         velv = min(velv + 900 * DT, 400);
-        if (move_y_grade(self, velv * DT, solido_inimigo)) { chao = (velv > 0); velv = 0; }
+        // true: as plataformas de mão única (=) seguram o inimigo por cima, como seguram o rato
+        if (move_y_grade(self, velv * DT, solido_inimigo, true)) { chao = (velv > 0); velv = 0; }
     }
     // contato: quem já te viu mata até no barril; o cão sempre mata
     if (!cego && !no_escuro && (!p.escondido || tipo == "C" || alerta != 0) && retangulos_batem(p, {x: x + 2, y: y + 2, w: w - 4, h: h - 3})) p.morre();

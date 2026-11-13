@@ -22,28 +22,36 @@ depth = -10000;
 gpu_set_texfilter(false);           // pixel perfeito, sem suavizar
 window_set_size(JANELA_W, JANELA_H);
 window_center();
-surface_resize(application_surface, JANELA_W, JANELA_H);
-display_set_gui_size(JANELA_W, JANELA_H);
+display_set_gui_maximise(1, 1, 0, 0);    // GUI = janela inteira, 1 unidade = 1 pixel (sem deslocamento)
+// A tela do jogo (application_surface) é desenhada por NÓS no Post Draw (Draw_77), ocupando a janela
+// inteira. Deixar o GameMaker desenhar sozinho esticava/deslocava a imagem.
+application_surface_draw_enable(false);
+global.tela_w = JANELA_W; global.tela_h = JANELA_H;     // tamanho da janela usado na última arrumação
 randomize();
 
-// A room pode ter qualquer tamanho (múltiplo de 16). A câmera é fixa: mostra a room inteira, ampliada o máximo
-// que couber na janela e centralizada. As fases usam 320x176 (20x11 tiles) e ficam grandes na tela.
+// Arruma câmera, surface e GUI para o tamanho ATUAL da janela (chamado no Room Start e sempre que a
+// janela muda de tamanho, pelo Post Draw). A room inteira é desenhada direto no tamanho da janela, sem
+// suavização (pixel art nítida). Com a janela num múltiplo de 352x192 (a fase 22x12) cada pixel do jogo
+// vira um quadrado exato (pixel-perfect); menus e rooms de outro tamanho enchem a janela do mesmo jeito.
 ajusta_tela = function()
 {
     global.colunas = ceil(room_width / TL);
     global.linhas = ceil(room_height / TL);
-    var zoom = min(JANELA_W / room_width, JANELA_H / room_height);
-    if (zoom >= 3) zoom = floor(zoom);                  // pixel perfeito quando a room é pequena
-    var larg = room_width * zoom;
-    var alt = room_height * zoom;
+    var ww = max(1, window_get_width());
+    var wh = max(1, window_get_height());
+    global.tela_w = ww; global.tela_h = wh;
     view_enabled = true;
     view_visible[0] = true;
     camera_set_view_pos(view_camera[0], 0, 0);
     camera_set_view_size(view_camera[0], room_width, room_height);
-    view_xport[0] = (JANELA_W - larg) / 2;
-    view_yport[0] = (JANELA_H - alt) / 2;
-    view_wport[0] = larg;
-    view_hport[0] = alt;
+    view_xport[0] = 0;
+    view_yport[0] = 0;
+    view_wport[0] = ww;
+    view_hport[0] = wh;
+    surface_resize(application_surface, ww, wh);
+    // GUI cobrindo a janela inteira a partir do canto (0,0). Com display_set_gui_size o GameMaker
+    // encaixava a GUI na proporção da surface e ela ficava deslocada (faixa sem véu na esquerda).
+    display_set_gui_maximise(1, 1, 0, 0);
 }
 
 #endregion
@@ -127,6 +135,38 @@ monta_fase = function()
     global.inimigos = [];  with (obj_inimigo) array_push(global.inimigos, id);
     global.queijos = [];   with (obj_queijo) array_push(global.queijos, id);
     global.chave = noone;  with (obj_chave) global.chave = id;
+    global.morcegos = [];  with (obj_morcego) array_push(global.morcegos, id);
+
+    // Tutorial-Celeste: se a fase tem uma dica de morcego configurada e ninguém
+    // colocou um morcego no editor, cria um automaticamente a 6 tiles à frente
+    // do rato, grudado no teto (ou flutuando a 3 tiles do chão, se não houver teto).
+    var _dica_fase = "";
+    if (variable_struct_exists(global.info_fase, "dica_morcego")) _dica_fase = global.info_fase.dica_morcego;
+    if (_dica_fase != "" && array_length(global.morcegos) == 0 && instance_exists(global.jogador))
+    {
+        var _px = global.jogador.x + global.jogador.w * 0.5;
+        var _py = global.jogador.y + global.jogador.h;
+        var _dir = 1;                                            // procura primeiro para a direita
+        var _ci = floor(_px / TL) + 6 * _dir;
+        if (_ci < 2 || _ci > GW - 3) { _dir = -_dir; _ci = floor(_px / TL) + 6 * _dir; }
+        _ci = clamp(_ci, 2, GW - 3);
+        var _base_lin = floor(_py / TL);
+        // procura um teto próximo (de -4 a +2 linhas): célula vazia com parede logo acima
+        var _cj = -1;
+        for (var _dj = -4; _dj <= 2; _dj++)
+        {
+            var _lj = _base_lin + _dj;
+            if (_lj < 1 || _lj >= GH - 1) continue;
+            if (tile_em(_ci, _lj) == "." && tile_em(_ci, _lj - 1) != ".")
+            {
+                _cj = _lj;
+                break;
+            }
+        }
+        if (_cj == -1) _cj = clamp(_base_lin - 3, 1, GH - 2);
+        var _mcg = instance_create_layer(_ci * TL, _cj * TL, "Instances", obj_morcego);   // canto da célula, como na room
+        array_push(global.morcegos, _mcg);
+    }
 
     // cada peça que precisa da grade pronta se prepara sozinha
     global.plat_span = [];

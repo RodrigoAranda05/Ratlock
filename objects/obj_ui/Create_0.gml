@@ -595,6 +595,8 @@ desenha_menus = function()
         desenha_dicas(262, [["Setas", "escolher"], ["Enter", "jogar"], ["Esc", "mapa"]]);
     }
 
+    // fase concluída no modo normal: tela no estilo Alien Escape (scr_desenho.desenha_tela_vitoria)
+    else if (tela == "clear" && global.modo == "normal") desenha_tela_vitoria();
     else if (tela == "clear")
     {
         var L = global.info_fase;

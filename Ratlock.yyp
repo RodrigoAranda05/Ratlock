@@ -38,6 +38,11 @@
   },
   "name":"Ratlock",
   "resources":[
+    {"id":{"name":"spr_fonte_pixel","path":"sprites/spr_fonte_pixel/spr_fonte_pixel.yy",},},
+    {"id":{"name":"spr_estrela_grande","path":"sprites/spr_estrela_grande/spr_estrela_grande.yy",},},
+    {"id":{"name":"spr_icone_fim","path":"sprites/spr_icone_fim/spr_icone_fim.yy",},},
+    {"id":{"name":"snd_passo","path":"sounds/snd_passo/snd_passo.yy",},},
+    {"id":{"name":"snd_derrapa","path":"sounds/snd_derrapa/snd_derrapa.yy",},},
     {"id":{"name":"obj_barril","path":"objects/obj_barril/obj_barril.yy",},},
     {"id":{"name":"obj_botao","path":"objects/obj_botao/obj_botao.yy",},},
     {"id":{"name":"obj_cabo","path":"objects/obj_cabo/obj_cabo.yy",},},

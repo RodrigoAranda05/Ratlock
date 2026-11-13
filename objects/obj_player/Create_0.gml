@@ -38,6 +38,13 @@ tempo_morte = 0;
 morte_particulas = [];     // partículas da explosão no estilo celeste quando o rato morre
 desce_plat = 0;         // tempo atravessando uma plataforma de mão única (descendo)
 tempo_derrapa = 0;      // intervalo entre as nuvens de poeira ao virar
+// game feel: rastro de poeira, passos, derrapada e "squash & stretch"
+tempo_correndo = 0;     // há quanto tempo está correndo no chão (a derrapada só vem depois de uma corrida)
+derrapando = false;     // freando no chão depois de correr (som + poeira)
+tempo_rastro = 0;       // intervalo entre os grãozinhos de poeira atrás dos pés
+ultimo_passo = -1;      // último quadro da animação de andar que tocou passo
+esc_x = 1;              // esticar/achatar o desenho (volta sozinho para 1)
+esc_y = 1;
 tempo_baixo_plat = 0;   // há quanto tempo segura S em cima de uma plataforma
 tempo_ar = 0;           // só desenho: tempo no ar (quadros do pulo)
 tempo_queda = 0;        // só desenho: tempo caindo (quadros da queda)
@@ -244,7 +251,7 @@ morre = function()
             x: cx_e, y: cy_e,
             vx: cos(a) * 180, vy: sin(a) * 180,
             vida: 0.55, vida_max: 0.55,
-            tam: 3 + (k % 3), cor: (k % 2 == 0) ? 0xf3efe6 : 0x9aa7bd
+            tam: 3 + (k % 3), cor: (k % 2 == 0) ? 0x858585 : 0x5d5d5d       // cinza do corpo e sombra do rato (paleta do sprite)
         });
     }
     // alguns pedaços menores em direções aleatórias
@@ -256,7 +263,7 @@ morre = function()
             x: cx_e, y: cy_e,
             vx: cos(a2) * v2, vy: sin(a2) * v2 - 40,
             vida: 0.55, vida_max: 0.55,
-            tam: 1 + (k % 2), cor: (k % 2 == 0) ? 0x3a3450 : 0xb04a4a
+            tam: 1 + (k % 2), cor: (k % 3 == 0) ? 0x5d2c28 : 0x858585          // pedacinhos: cauda/nariz e corpo
         });
     }
 }
@@ -381,15 +388,41 @@ aplica_velocidade = function()
         }
     }
 
-    // virar de direção correndo: nuvenzinha de poeira nos pés (como no Mario)
-    tempo_derrapa -= DT;
-    if (chao && !escondido && ax != 0 && sign(velh) == -ax && abs(velh) > 40 && tempo_derrapa <= 0)
+    // ---- game feel no chão: passos, rastro de poeira e derrapada ----
+    var _pe_x = x + w / 2, _pe_y = y + h;
+    if (chao && !escondido && abs(velh) > max_velh * 0.8) tempo_correndo += DT;
+    else if (!derrapando) tempo_correndo = 0;
+    // derrapada: vinha correndo e soltou a direção (ou virou para o outro lado)
+    var _freando = (ax == 0 || ax == -sign(velh));
+    if (!derrapando && chao && !escondido && _freando && abs(velh) > 55 && tempo_correndo > 0.18)
     {
-        poeira(x + w / 2, y + h, sign(velh), 2);
-        tempo_derrapa = 0.07;
+        derrapando = true;
+        tempo_derrapa = 0;
+        toca_som("snd_derrapa", 0.45, 0.92 + random(0.16));
+        poeira(_pe_x + sign(velh) * 3, _pe_y, sign(velh), 4);
     }
+    if (derrapando)
+    {
+        tempo_derrapa -= DT;
+        if (tempo_derrapa <= 0) { poeira(_pe_x + sign(velh) * 3, _pe_y, sign(velh), 1); tempo_derrapa = 0.04; }
+        if (!chao || abs(velh) < 22 || (ax != 0 && ax == sign(velh))) { derrapando = false; tempo_correndo = 0; }
+    }
+    // rastro: grãozinhos de poeira saindo de trás dos pés enquanto corre
+    if (chao && !escondido && !derrapando && abs(velh) > 50)
+    {
+        tempo_rastro -= DT;
+        if (tempo_rastro <= 0) { poeira(_pe_x - sign(velh) * 4, _pe_y, -sign(velh), 1); tempo_rastro = 0.1; }
+    }
+    // passos no ritmo da animação de andar (quadros em que o pé encosta no chão)
+    var _quadro = floor(tempo_anim * 12) % 8;
+    if (chao && !escondido && abs(velh) > 20 && !derrapando && _quadro != ultimo_passo && (_quadro == 1 || _quadro == 5))
+        toca_som("snd_passo", 0.3, 0.9 + random(0.2));
+    ultimo_passo = _quadro;
+
     var tv = escondido ? 0 : ax * max_velh;
-    velh += (tv - velh) * min(1, DT * (chao ? 20 : 10));
+    // atrito: soltar a direção no chão escorrega um pouquinho (derrapada); virar ou acelerar responde rápido
+    var _taxa = chao ? ((ax == 0) ? 11 : 20) : 10;
+    velh += (tv - velh) * min(1, DT * _taxa);
     if (ax != 0 && !escondido) face = ax;
 
     // plataforma de mão única: só S + pulo desce atravessando (só segurar S não desce: dá para se esconder no barril)
@@ -410,6 +443,8 @@ aplica_velocidade = function()
         velv = global.tem_chave ? -195 : pulo_forca;
         toca_som("snd_pulo", 0.7, global.tem_chave ? 0.85 : 1);
         poeira(x + w / 2, y + h, 0, 4);   // com a chave na boca o pulo é mais fraco
+        esc_x = 0.82; esc_y = 1.18;       // estica para cima ao pular
+        derrapando = false;
         buffer_pulo = 0; tempo_coyote = 0;
     }
     // soltar o botão corta o pulo (altura variável)
@@ -446,6 +481,7 @@ movimento = function()
     caixas_apoio();
     if (chao && !_estava_no_chao && _vel_antes > 110) toca_som("snd_pouso", clamp(_vel_antes / 400, 0.3, 0.8));
     if (chao && !_estava_no_chao && _vel_antes > 110) poeira(x + w / 2, y + h, 0, 3 + min(5, floor(_vel_antes / 90)));   // pouso
+    if (chao && !_estava_no_chao && _vel_antes > 110) { var _f = clamp(_vel_antes / 400, 0.3, 1); esc_x = 1 + 0.28 * _f; esc_y = 1 - 0.24 * _f; }   // achata ao cair
     if (chao) queda_max = 0;
     else queda_max = max(queda_max, velv);
     if (y > GH * TL + 30) morre();
@@ -489,6 +525,8 @@ passo = function()
 {
     if (global.estado != "play" || transicao_saindo()) return;     // menus e tela de sala concluída: o rato fica parado
     tempo_anim += DT;
+    esc_x += (1 - esc_x) * min(1, DT * 14);      // squash & stretch volta ao normal
+    esc_y += (1 - esc_y) * min(1, DT * 14);
     tempo_largou_cano -= DT;
     desce_plat -= DT;
     tempo_duto -= DT;

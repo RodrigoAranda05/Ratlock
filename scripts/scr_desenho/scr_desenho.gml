@@ -269,31 +269,37 @@ function poeira(_x, _y, _dir, _n)
 }
 
 // ---------- GUI em alta resolução ----------
-// O layout é 480x272 (VW x VH); a matriz amplia para a janela. Chame gui_comeca() no Draw GUI e gui_termina() no fim.
+// O layout é VW x VH (480x272) e a matriz o estica para a janela INTEIRA (a GUI tem o tamanho real da
+// janela, veja obj_game.ajusta_tela). Assim menus, editor e pausa enchem a tela sem borda preta.
+// Sem suavização: os sprites ficam nítidos (pixel art). Chame gui_comeca() no Draw GUI e gui_termina() no fim.
+function gui_largura() { var _w = display_get_gui_width(); return (_w > 0) ? _w : JANELA_W; }
+function gui_altura() { var _h = display_get_gui_height(); return (_h > 0) ? _h : JANELA_H; }
+
 function gui_comeca()
 {
-    var k = min(JANELA_W / VW, JANELA_H / VH);
-    matrix_set(matrix_world, matrix_build((JANELA_W - VW * k) / 2, (JANELA_H - VH * k) / 2, 0, 0, 0, 0, k, k, 1));
+    var sx = gui_largura() / VW;
+    var sy = gui_altura() / VH;
+    matrix_set(matrix_world, matrix_build(0, 0, 0, 0, 0, 0, sx, sy, 1));
+    gpu_set_texfilter(false);
 }
 
 function gui_termina()
 {
     matrix_set(matrix_world, matrix_build_identity());
+    gpu_set_texfilter(false);
     draw_set_alpha(1);
     draw_set_colour(c_white);
 }
 
-// posição do mouse no layout 480x272 (como o desenho do GUI enxerga)
+// posição do mouse no layout VW x VH (como o desenho do GUI enxerga)
 function mouse_layout_x()
 {
-    var k = min(JANELA_W / VW, JANELA_H / VH);
-    return (device_mouse_x_to_gui(0) - (JANELA_W - VW * k) / 2) / k;
+    return device_mouse_x_to_gui(0) / (gui_largura() / VW);
 }
 
 function mouse_layout_y()
 {
-    var k = min(JANELA_W / VW, JANELA_H / VH);
-    return (device_mouse_y_to_gui(0) - (JANELA_H - VH * k) / 2) / k;
+    return device_mouse_y_to_gui(0) / (gui_altura() / VH);
 }
 
 function desenha_moldura(_x, _y, _w, _h)
@@ -967,6 +973,14 @@ function desenha_fundo_menu_tela(_alfa = 0.68)
 // menu de pausa durante a fase: véu escuro + opções estilo home + sub-popup de SAIR
 function desenha_pause_menu()
 {
+    // No modo teste/custom o menu de pausa não aparece: Esc volta direto ao editor (ou à lista)
+    if (global.modo == "teste" || global.modo == "custom")
+    {
+        global.pausa = false;
+        global.pausa_sair_confirma = false;
+        sai_custom();
+        return;
+    }
     // véu escuro em cima do mundo
     desenha_rect_alfa(0, 0, VW, VH, 0x03060e, 0.72);
     // caixa escura plana com borda dourada
@@ -987,3 +1001,141 @@ function desenha_pause_menu()
     // sub-popup de confirmação de saída
     if (global.pausa_sair_confirma) desenha_popup_sair();
 }
+
+#region tela de vitória (estilo Alien Escape)
+
+// fonte em pixel art (spr_fonte_pixel): 5x7 em negrito, célula de 7x9 (2 linhas de acento em cima).
+// Uma imagem só: linha de cima = letras com a parte de baixo azulada (título); de baixo = brancas lisas (tingíveis).
+function fonte_pixel_chars() { return "0123456789.-/sACDEFILNORSTUÍ@+&~"; }
+
+function largura_texto_pixel(_s, _esc)
+{
+    return max(0, string_length(_s) * 7 * _esc - _esc);
+}
+
+// _partes: [[texto, cor], ...] desenhadas em sequência, centralizadas em _cx. Espaço só avança.
+function desenha_partes_pixel(_partes, _cx, _y, _esc, _sombreado = false, _alfa = 1)
+{
+    var chars = fonte_pixel_chars();
+    var total = "";
+    for (var p = 0; p < array_length(_partes); p++) total += _partes[p][0];
+    var xx = round(_cx - largura_texto_pixel(total, _esc) / 2);
+    for (var p = 0; p < array_length(_partes); p++)
+    {
+        var s = _partes[p][0];
+        for (var i = 1; i <= string_length(s); i++)
+        {
+            var k = string_pos(string_char_at(s, i), chars);
+            if (k > 0) draw_sprite_part_ext(spr_fonte_pixel, 0, (k - 1) * 7, _sombreado ? 0 : 9, 7, 9, xx, _y, _esc, _esc, cor_rgb(_partes[p][1]), _alfa);
+            xx += 7 * _esc;
+        }
+    }
+}
+
+function desenha_texto_pixel(_s, _x, _y, _esc, _cor, _sombreado = false, _al = "left", _alfa = 1)
+{
+    var w = largura_texto_pixel(_s, _esc);
+    var cx = _x + w / 2;
+    if (_al == "center") cx = _x;
+    else if (_al == "right") cx = _x - w / 2;
+    desenha_partes_pixel([[_s, _cor]], cx, _y, _esc, _sombreado, _alfa);
+}
+
+// "estouro" com leve passada do ponto (0 -> 1, passando de 1 um pouco)
+function ease_estouro(_p)
+{
+    _p = clamp(_p, 0, 1);
+    var c1 = 1.9, c3 = c1 + 1;
+    return 1 + c3 * power(_p - 1, 3) + c1 * power(_p - 1, 2);
+}
+
+function formata_seg(_t)
+{
+    return string_replace_all(string_format(_t, 1, 2), " ", "") + "s";
+}
+
+// tela de fase concluída no modo normal: fundo preto, painel com 3 estrelas que estouram uma a uma,
+// título em pixel art, uma linha por estrela (valor - meta) e os atalhos nos cantos de baixo.
+function desenha_tela_vitoria()
+{
+    var L = global.info_fase;
+    var t = global.tempo_tela;
+    var cx = VW / 2;
+    if (!variable_global_exists("vit_som")) global.vit_som = [false, false, false];
+
+    // fundo
+    desenha_rect_alfa(0, 0, VW, VH, 0x000000, 0.9 * min(1, t / 0.2));
+
+    // painel sobe um pouco ao aparecer
+    var e = 1 - power(1 - min(1, t / 0.3), 3);
+    var pw = 320, ph = 150;
+    var px = cx - pw / 2;
+    var py = round(84 + (1 - e) * 24);
+    draw_set_alpha(e);
+    desenha_rect(px, py, pw, ph, 0x3d3a4f);
+    desenha_rect(px, py + ph - 7, pw, 7, 0x262433);
+    draw_set_alpha(1);
+    if (e < 0.05) return;
+
+    // queijo da fase (cantinho do painel)
+    if (global.queijo_fase >= 0) desenha_icone_queijo(px + pw - 16, py + 14, global.queijo_fase == 1);
+
+    // título
+    desenha_texto_pixel("FASE CONCLUÍDA", cx, py + 40, 3, 0xffffff, true, "center", e);
+
+    // linhas: valor (branco se a estrela veio, rosado se não) - meta (escuro)
+    var cor_meta = 0x24212f;
+    var est = global.estrelas_fase;
+    var linhas = [];
+    array_push(linhas, [["@  ", 0xffffff], [formata_seg(global.tempo_fase), est[1] ? 0xffffff : 0xff9a8c], ["  -  ", cor_meta], [string(L.tempo_par) + "s", cor_meta]]);
+    array_push(linhas, [["+  ", 0xffffff], [string(global.mortes_fase), est[0] ? 0xffffff : 0xff9a8c], ["  -  ", cor_meta], ["0", cor_meta]]);
+    if (L.objetivo3 == "cabo")       array_push(linhas, [["~  ", 0xffffff], [string(global.cabos_roidos), est[2] ? 0xffffff : 0xff9a8c], ["  -  ", cor_meta], ["0", cor_meta]]);
+    else if (L.objetivo3 == "chave") array_push(linhas, [["&  ", 0xffffff], [string(global.chaves_soltas), est[2] ? 0xffffff : 0xff9a8c], ["  -  ", cor_meta], ["0", cor_meta]]);
+    else                             array_push(linhas, [["@  ", 0xffffff], [formata_seg(global.tempo_fase), est[2] ? 0xffffff : 0xff9a8c], ["  -  ", cor_meta], [string(round(L.tempo_par * 0.65)) + "s", cor_meta]]);
+    // colunas fixas: ícone | valor | - | meta (alinhadas entre as linhas)
+    for (var k = 0; k < 3; k++)
+    {
+        var a = clamp((t - 0.25 - k * 0.08) / 0.2, 0, 1);
+        if (a <= 0) continue;
+        var ly = py + 80 + k * 20;
+        var _linha = linhas[k];
+        desenha_texto_pixel(string_replace_all(_linha[0][0], " ", ""), cx - 88, ly, 2, _linha[0][1], false, "left", a);
+        desenha_texto_pixel(_linha[1][0], cx - 62, ly, 2, _linha[1][1], false, "left", a);
+        desenha_texto_pixel("-", cx + 18, ly, 2, _linha[2][1], false, "left", a);
+        desenha_texto_pixel(_linha[3][0], cx + 42, ly, 2, _linha[3][1], false, "left", a);
+    }
+
+    // estrelas: estouram uma a uma; as conquistadas tocam um "plim" cada vez mais agudo
+    var sx = [cx - 54, cx, cx + 54];
+    var sy = [py + 2, py - 8, py + 2];
+    var se = [1.6, 1.95, 1.6];
+    var sa = [12, 0, -12];
+    for (var k = 0; k < 3; k++)
+    {
+        var t0 = 0.35 + k * 0.22;
+        if (t < t0) continue;
+        var ganhou = est[k];
+        if (ganhou && !global.vit_som[k])
+        {
+            global.vit_som[k] = true;
+            toca_som("snd_estrela", 0.8, 1 + 0.12 * k);
+        }
+        var esc = se[k] * (ganhou ? ease_estouro((t - t0) / 0.3) : min(1, (t - t0) / 0.15));
+        draw_sprite_ext(spr_estrela_grande, ganhou ? 0 : 1, sx[k], sy[k], esc, esc, sa[k], c_white, 1);
+    }
+
+    if (global.cheat) desenha_texto("Cheats ligados: progresso não é salvo", cx, py + ph + 10, 0xffd84a, "center", 8);
+
+    // atalhos nos cantos de baixo
+    if (t > 0.5)
+    {
+        var aa = min(1, (t - 0.5) / 0.2);
+        draw_sprite_ext(spr_icone_fim, 0, 32, VH - 28, 2, 2, 0, c_white, aa);
+        desenha_texto_pixel("R", 54, VH - 34, 2, 0xffffff, false, "left", aa);
+        draw_sprite_ext(spr_icone_fim, 1, VW - 32, VH - 28, 2, 2, 0, c_white, aa);
+        desenha_texto_pixel("ENTER", VW - 54, VH - 34, 2, 0xffffff, false, "right", aa);
+        desenha_texto("Esc: salas", cx, VH - 22, 0x6e6a86, "center", 8);
+    }
+}
+
+#endregion

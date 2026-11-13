@@ -1,6 +1,7 @@
 // ===== desenho do rato (sprites) =====
 // Todos os sprites do rato têm a origem no centro-baixo da célula: desenhamos no centro da caixa de colisão
 // (x + w/2) com os pés no fundo dela (y + h). O rato de pé é mais alto que a caixa; a cabeça passa por cima.
+if (!variable_instance_exists(id, "esc_x")) { esc_x = 1; esc_y = 1; }
 var cx = x + w / 2, cy = y + h;
 var spr = spr_rato_parado, idx = 0, xs = face, al = 1, k = 1;
 var fr = floor(tempo_anim * 12) % 2;
@@ -39,7 +40,7 @@ if (morto)
         var _px = round(_p.x), _py = round(_p.y);
         // sombra escura fina + pixel central (duas camadas para sair o contorno)
         draw_set_alpha(_al);
-        draw_set_colour(cor_rgb(0x14081e));
+        draw_set_colour(cor_rgb(0x000000));          // contorno preto, igual ao do sprite
         draw_rectangle(_px - _tam / 2 - 1, _py - _tam / 2 - 1, _px + _tam / 2 + 1, _py + _tam / 2 + 1, false);
         draw_set_colour(cor_rgb(_p.cor));
         draw_rectangle(_px - _tam / 2, _py - _tam / 2, _px + _tam / 2, _py + _tam / 2, false);
@@ -81,7 +82,7 @@ if (agua_y >= 0 && cy > agua_y)
     if (corte > 0) draw_sprite_part_ext(spr, idx, 0, 0, sw, corte, dx, dy, xs * k, k, c_white, al);
     draw_sprite_part_ext(spr, idx, 0, corte, sw, sh - corte, dx, dy + corte * k, xs * k, k, 0xffb870, al * 0.85);
 }
-else draw_sprite_ext(spr, idx, cx, cy, xs * k, k, 0, c_white, al);
+else draw_sprite_ext(spr, idx, cx, cy, xs * k * esc_x, k * esc_y, 0, c_white, al);      // esc_x/esc_y: estica ao pular, achata ao cair
 // chave na boca agora vem nos próprios quadros do rato (8..15); escalando/morto mantêm a boca vazia
 if (global.tem_chave && !morto && escalando != 0)
     draw_sprite_ext(spr_chave_boca, 0, cx + face * k * 8, cy - 11 * k, face * k, k, 0, c_white, al);

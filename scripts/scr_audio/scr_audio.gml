@@ -18,27 +18,29 @@ function carrega_config()
     global.config.sons = clamp(ini_read_real("config", "sons", 0.8), 0, 1);
     global.config.tela = (ini_read_real("config", "tela", 0) == 1);
     global.config.flash = (ini_read_real("config", "flash", 1) == 1);
-    var rw = ini_read_real("config", "res_w", 1280);
+    var rw = ini_read_real("config", "res_w", -1);
     ini_close();
     monta_resolucoes();
-    global.config.res = 0;
+    // padrão: a maior janela que cabe na tela (vale também para quem tinha salvo um tamanho antigo, ex. 1280x720)
+    global.config.res = array_length(global.resolucoes) - 1;
     for (var q = 0; q < array_length(global.resolucoes); q++) { if (global.resolucoes[q][0] == rw) global.config.res = q; }
     window_set_fullscreen(global.config.tela);
     aplica_resolucao();
 }
 
-// tamanhos de janela oferecidos (16:9): só os que cabem na tela do jogador
+// tamanhos de janela oferecidos: múltiplos inteiros da fase 22x12 (352x192), só os que cabem na tela.
+// Com a janela num múltiplo exato, a fase sai pixel-perfect e enche a janela (sem borda preta).
 function monta_resolucoes()
 {
-    var cand = [[1280, 720], [1600, 900], [1920, 1080], [2560, 1440]];
     global.resolucoes = [];
-    for (var q = 0; q < array_length(cand); q++)
+    for (var k = 2; k <= 8; k++)
     {
-        if (q == 0 || (cand[q][0] <= display_get_width() && cand[q][1] <= display_get_height() - 40)) array_push(global.resolucoes, cand[q]);
+        var rw = BASE_W * k, rh = BASE_H * k;
+        if (k == 2 || (rw <= display_get_width() && rh <= display_get_height() - 80)) array_push(global.resolucoes, [rw, rh]);
     }
 }
 
-// muda o tamanho da janela; o jogo é desenhado em 1280x720 e a imagem é ampliada/reduzida junto (sem mexer no resto)
+// muda o tamanho da janela; o obj_game percebe a mudança e arruma câmera, surface e GUI sozinho
 function aplica_resolucao()
 {
     if (global.config.tela) return;       // em tela cheia o jogo já ocupa a tela toda
